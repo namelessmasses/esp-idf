@@ -3,7 +3,8 @@
 {
 	"name": "espidf",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "espidf:latest",
+	//"image": "espidf:latest",
+	"dockerFile": "../tools/docker/Dockerfile",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
