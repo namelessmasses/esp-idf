@@ -22,6 +22,7 @@
 #include "bredr_app_common_utils.h"
 
 #define BREDR_APP_TAG "BREDR_APP"
+#define BREDR_APP_DEVICE_NAME_UNKNOWN "<unknown>"
 
 /*******************************
  * STATIC FUNCTION DEFINITIONS
@@ -114,6 +115,17 @@ void bredr_app_gap_evt_def_hdl(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_
         ESP_LOGI(BREDR_APP_TAG, "ESP_BT_GAP_ACL_DISC_CMPL_STAT_EVT Disconnected from [%02x:%02x:%02x:%02x:%02x:%02x], reason: 0x%x",
                  bda[0], bda[1], bda[2], bda[3], bda[4], bda[5], param->acl_disconn_cmpl_stat.reason);
         break;
+
+    /* Get device name complete event */
+    case ESP_BT_GAP_GET_DEV_NAME_CMPL_EVT:
+        ESP_LOGI(BREDR_APP_TAG, "ESP_BT_GAP_GET_DEV_NAME_CMPL_EVT: Status=%d; Name=[%s]",
+            param->get_dev_name_cmpl.status,
+            ((param->get_dev_name_cmpl.status == ESP_BT_STATUS_SUCCESS)
+            || (param->get_dev_name_cmpl.status == ESP_BT_STATUS_DONE))
+            ? param->get_dev_name_cmpl.name
+            : BREDR_APP_DEVICE_NAME_UNKNOWN);
+        break;
+
     /* others */
     default: {
         ESP_LOGI(BREDR_APP_TAG, "event: %d", event);
