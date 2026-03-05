@@ -81,6 +81,6 @@ void bt_a2d_data_hdl(const uint8_t *data, uint32_t len)
 
     /* log the number every 100 packets */
     if (++s_pkt_cnt % 100 == 0) {
-        ESP_LOGI(BT_AV_TAG, "Audio packet count: %"PRIu32, s_pkt_cnt);
+        ESP_LOGI(BT_AV_TAG, "Audio packet count: %"PRIu32 " (%u bytes)", s_pkt_cnt, len);
     }
 }
