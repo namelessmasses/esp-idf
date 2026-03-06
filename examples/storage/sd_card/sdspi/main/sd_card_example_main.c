@@ -9,7 +9,9 @@
 */
 
 #include <string.h>
-#include <sys/unistd.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
@@ -243,6 +245,20 @@ void app_main(void)
     if (ret != ESP_OK) {
         return;
     }
+
+    FILE *test_txt = fopen(MOUNT_POINT"/test.txt", "r");
+    if (!test_txt)
+    {
+        printf("Error: (%d) %s", errno, strerror(errno));
+        return;
+    }
+
+    for (int ch = fgetc(test_txt); ch != EOF; ch = fgetc(test_txt))
+    {
+        printf("%c", ch);
+    }
+    printf("\n");
+    fclose(test_txt);
 
     // All done, unmount partition and disable SPI peripheral
     esp_vfs_fat_sdcard_unmount(mount_point, card);
