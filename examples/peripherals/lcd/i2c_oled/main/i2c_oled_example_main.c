@@ -57,7 +57,7 @@ static const uint32_t EXAMPLE_PIN_NUM_RST  = -1;
 static const uint8_t EXAMPLE_OLED_FRAME_WHITE = 0xFF;
 static const uint8_t EXAMPLE_OLED_FRAME_BLACK = 0x00;
 
-static const uint32_t EXAMPLE_BOOT_CHECK_STEP_DELAY_MS = 1000;
+static const uint32_t EXAMPLE_BOOT_CHECK_STEP_DELAY_MS = 500;
 
 static const uint32_t EXAMPLE_LVGL_TASK_STACK_SIZE   = (4 * 1024);
 static const uint32_t EXAMPLE_LVGL_TASK_PRIORITY     = 2;
@@ -173,9 +173,6 @@ example_notify_lvgl_panel_flush_complete(esp_lcd_panel_io_handle_t io_panel,
 {
     if (atomic_flag_test_and_set(&s_flush_pending))
     {
-        ESP_LOGW(TAG, "Flush complete callback called while a flush is already "
-                      "pending. This may indicate LVGL is not keeping up with "
-                      "the display flush rate.");
         return false;
     }
 
@@ -361,6 +358,8 @@ extern void example_lvgl_ui(lv_display_t *disp);
 
 void app_main(void)
 {
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+
     ESP_LOGI(TAG, "Initialize I2C bus");
     i2c_master_bus_handle_t i2c_bus    = NULL;
     i2c_master_bus_config_t bus_config = {
@@ -433,7 +432,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Setting LVGL display buffers and render mode full");
     lv_display_set_buffers(display, s_LVGL_framebuffer, NULL,
                            sizeof(s_LVGL_framebuffer),
-                           LV_DISPLAY_RENDER_MODE_PARTIAL);
+                           LV_DISPLAY_RENDER_MODE_FULL);
 
     ESP_LOGI(TAG,
              "Register LVGL callback for flushing display buffer to the panel");
