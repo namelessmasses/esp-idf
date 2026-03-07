@@ -4,29 +4,28 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
+#include "freertos/FreeRTOS.h"
+#include "lvgl.h"
+
 #include "core/lv_obj.h"
 #include "core/lv_obj_style_gen.h"
 #include "display/lv_display.h"
-#include "font/lv_font.h"
-#include "lvgl.h"
-#include "misc/lv_color.h"
-#include "misc/lv_style.h"
-
-#include "esp_lcd_panel_sh1106.h"
-
+#include "driver/i2c_master.h"
+#include "esp_err.h"
 #include "esp_lcd_io_i2c.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
-
-#include "driver/i2c_master.h"
-
-#include "freertos/FreeRTOS.h"
+#include "esp_lcd_panel_sh1106.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "font/lv_font.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
-
-#include "esp_err.h"
-#include "esp_log.h"
-
+#include "lv_api_map_v8.h"
+#include "misc/lv_area.h"
+#include "misc/lv_color.h"
+#include "misc/lv_style_gen.h"
+#include "misc/lv_text.h"
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -145,6 +144,11 @@ static _lock_t s_lvgl_api_lock;
 
 static atomic_flag s_flush_pending = ATOMIC_FLAG_INIT;
 
+static uint32_t example_lvgl_tick_get_cb(void)
+{
+    return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
+
 /**
  * @brief LVGL flush-complete callback for the ESP LCD panel I/O driver.
  *
@@ -178,9 +182,7 @@ example_notify_lvgl_panel_flush_complete(esp_lcd_panel_io_handle_t io_panel,
     ESP_LOGD(TAG,
              "ESP LCD panel I/O event: flush complete... notifying LVGL...");
     lv_display_t *disp = (lv_display_t *)user_ctx;
-    _lock_acquire(&s_lvgl_api_lock);
     lv_display_flush_ready(disp);
-    _lock_release(&s_lvgl_api_lock);
     return false;
 }
 
@@ -189,9 +191,7 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
 {
     ESP_LOGD(TAG, "Flushing LVGL buffer to panel: %p", px_map);
 
-    _lock_acquire(&s_lvgl_api_lock);
     esp_lcd_panel_handle_t panel_handle = lv_display_get_user_data(disp);
-    _lock_release(&s_lvgl_api_lock);
 
     // This is necessary because LVGL reserves 2 x 4 bytes in the buffer, as
     // these are assumed to be used as a palette. Skip the palette here More
@@ -314,68 +314,6 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
     ESP_LOGD(TAG, "Flush command issued to panel");
 }
 
-static void example_lvgl_boot_checks(lv_display_t *disp)
-{
-    lv_obj_t *scr = lv_display_get_screen_active(disp);
-    lv_obj_clean(scr);
-    lv_refr_now(disp);
-
-    lv_obj_t *label = lv_label_create(scr);
-
-    typedef struct
-    {
-        lv_color_t  background_color;
-        lv_color_t  text_color;
-        const char *name;
-    } color_scheme_t;
-
-    color_scheme_t color_schemes[] = {{
-                                          .background_color = lv_color_black(),
-                                          .text_color       = lv_color_white(),
-                                          .name             = "Light on dark",
-                                      },
-                                      {
-                                          .background_color = lv_color_white(),
-                                          .text_color       = lv_color_black(),
-                                          .name             = "Dark on light",
-                                      }};
-
-    for (int scheme_idx = 0; scheme_idx < 2; ++scheme_idx)
-    {
-        const color_scheme_t *scheme = &color_schemes[scheme_idx];
-
-        ESP_LOGI(TAG, "Boot check (LVGL): %s", scheme->name);
-        lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(scr, scheme->background_color, LV_PART_MAIN);
-        lv_obj_set_style_text_opa(label, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_text_font(label, &lv_font_unscii_8, LV_PART_MAIN);
-        lv_obj_set_style_text_color(label, scheme->text_color, LV_PART_MAIN);
-        // lv_obj_set_style_text_letter_space(label, 2, LV_PART_MAIN);
-
-        lv_label_set_text(label, scheme->name);
-        lv_obj_center(label);
-
-        lv_refr_now(disp);
-        vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
-
-        for (int i = 3; i > 0; --i)
-        {
-            ESP_LOGI(TAG,
-                     "Boot check (LVGL): %s... clearing "
-                     "screen in %d",
-                     scheme->name, i);
-            lv_label_set_text_fmt(label, "%s\n%d...", scheme->name,
-                                  i);
-            lv_obj_center(label);
-            lv_refr_now(disp);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
-    }
-
-    lv_obj_clean(scr);
-    lv_refr_now(disp);
-}
-
 /**
  * @brief LVGL event loop task function
  *
@@ -403,7 +341,9 @@ static void example_lvgl_event_loop(void *no_args)
 
     while (1)
     {
+        _lock_acquire(&s_lvgl_api_lock);
         time_till_next_ms = lv_timer_handler();
+        _lock_release(&s_lvgl_api_lock);
 
         // in case of triggering a task watchdog time out
         time_till_next_ms =
@@ -477,6 +417,9 @@ void app_main(void)
     ESP_LOGI(TAG, "Initializing LVGL library");
     lv_init();
 
+    ESP_LOGI(TAG, "Configuring LVGL tick callback");
+    lv_tick_set_cb(example_lvgl_tick_get_cb);
+
     ESP_LOGI(TAG, "Creating LVGL display");
     lv_display_t *display =
         lv_display_create(EXAMPLE_SH1106_H_RES, EXAMPLE_SH1106_V_RES);
@@ -503,46 +446,20 @@ void app_main(void)
     esp_lcd_panel_io_register_event_callbacks(
         io_handle, &esp_lcd_panel_callbacks, display);
 
-#if 0
-    // Activate the LVGL monochrome theme
-    ESP_LOGI(TAG, "Setting LVGL theme to monochrome");
-    lv_theme_t *monochrome_theme = lv_theme_default_init(
-        display, lv_color_black(), lv_color_white(), false, LV_FONT_DEFAULT);
-    lv_display_set_theme(display, monochrome_theme);
-#endif
-
-    ESP_LOGD(TAG, "LVGL default theme state flushing to panel");
-    lv_refr_now(display);
-    ESP_LOGD(TAG, "LVGL default theme state flushed");
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
-
-#if 1
-    ESP_LOGI(TAG, "Performing LVGL boot checks");
-    example_lvgl_boot_checks(display);
-#else
-    (void)example_lvgl_boot_checks;
-#endif
-
-#if 0
     ESP_LOGI(TAG, "Creating LVGL event loop task");
     xTaskCreate(example_lvgl_event_loop, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE,
                 NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
-#else
-    (void)EXAMPLE_LVGL_TASK_STACK_SIZE;
-    (void)EXAMPLE_LVGL_TASK_PRIORITY;
-    (void)example_lvgl_event_loop;
-#endif
 
     // After this point access to the LVGL API must be protected by the
     // s_lvgl_api_lock mutex, as the LVGL event loop is running in a separate
     // task and may call back into user code (e.g.,
     // example_notify_lvgl_panel_flush_complete) that also needs to call LVGL
     // API functions.
-#if 0
+
     ESP_LOGI(TAG, "Display LVGL UI");
     _lock_acquire(&s_lvgl_api_lock);
     example_lvgl_ui(display);
     _lock_release(&s_lvgl_api_lock);
-#endif
+
     ESP_LOGI(TAG, "Ending app_main");
 }
