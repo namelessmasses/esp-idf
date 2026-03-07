@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
-#include "lvgl.h"
+#include "core/lv_obj.h"
+#include "core/lv_obj_style_gen.h"
 #include "display/lv_display.h"
+#include "font/lv_font.h"
+#include "lvgl.h"
 #include "misc/lv_color.h"
 #include "misc/lv_style.h"
 
@@ -55,7 +58,7 @@ static const uint32_t EXAMPLE_PIN_NUM_RST  = -1;
 static const uint8_t EXAMPLE_OLED_FRAME_WHITE = 0xFF;
 static const uint8_t EXAMPLE_OLED_FRAME_BLACK = 0x00;
 
-static const uint32_t EXAMPLE_BOOT_CHECK_STEP_DELAY_MS = 3000;
+static const uint32_t EXAMPLE_BOOT_CHECK_STEP_DELAY_MS = 1000;
 
 static const uint32_t EXAMPLE_LVGL_TASK_STACK_SIZE   = (4 * 1024);
 static const uint32_t EXAMPLE_LVGL_TASK_PRIORITY     = 2;
@@ -313,7 +316,7 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
 
 static void example_lvgl_boot_checks(lv_display_t *disp)
 {
-    lv_obj_t *scr   = lv_display_get_screen_active(disp);
+    lv_obj_t *scr = lv_display_get_screen_active(disp);
     lv_obj_clean(scr);
     lv_refr_now(disp);
 
@@ -321,105 +324,56 @@ static void example_lvgl_boot_checks(lv_display_t *disp)
 
     typedef struct
     {
-        lv_color_t background_color;
-        lv_color_t text_color;
+        lv_color_t  background_color;
+        lv_color_t  text_color;
         const char *name;
     } color_scheme_t;
 
-    color_scheme_t color_schemes[] = {
-        {
-            .background_color = lv_color_black(),
-            .text_color       = lv_color_white(),
-            .name       = "Light on dark",
-        },
-        {
-            .background_color = lv_color_white(),
-            .text_color       = lv_color_black(),
-            .name       = "Dark on light",
-        }
-    };
+    color_scheme_t color_schemes[] = {{
+                                          .background_color = lv_color_black(),
+                                          .text_color       = lv_color_white(),
+                                          .name             = "Light on dark",
+                                      },
+                                      {
+                                          .background_color = lv_color_white(),
+                                          .text_color       = lv_color_black(),
+                                          .name             = "Dark on light",
+                                      }};
 
-    const color_scheme_t *scheme = &color_schemes[0];
-
-    ESP_LOGI(TAG, "Boot check (LVGL): %s", scheme->name);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(scr, scheme->background_color, LV_PART_MAIN);
-    lv_obj_set_style_text_opa(label, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_10, LV_PART_MAIN);
-    lv_obj_set_style_text_color(label, scheme->text_color, LV_PART_MAIN);
-    lv_obj_set_style_text_letter_space(label, 2, LV_PART_MAIN);
-
-    lv_label_set_text(label, scheme->name);
-    lv_obj_center(label);
-
-    lv_refr_now(disp);
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
-
-    for (int i = 3; i > 0; --i)
+    for (int scheme_idx = 0; scheme_idx < 2; ++scheme_idx)
     {
-        ESP_LOGI(TAG,
-                 "Boot check (LVGL): %s... clearing "
-                 "screen in %d",
-                 scheme->name, i);
-        lv_label_set_text_fmt(label, "%s\nClearing in %d...", scheme->name, i);
+        const color_scheme_t *scheme = &color_schemes[scheme_idx];
+
+        ESP_LOGI(TAG, "Boot check (LVGL): %s", scheme->name);
+        lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(scr, scheme->background_color, LV_PART_MAIN);
+        lv_obj_set_style_text_opa(label, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_text_font(label, &lv_font_unscii_8, LV_PART_MAIN);
+        lv_obj_set_style_text_color(label, scheme->text_color, LV_PART_MAIN);
+        // lv_obj_set_style_text_letter_space(label, 2, LV_PART_MAIN);
+
+        lv_label_set_text(label, scheme->name);
+        lv_obj_center(label);
+
         lv_refr_now(disp);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+
+        for (int i = 3; i > 0; --i)
+        {
+            ESP_LOGI(TAG,
+                     "Boot check (LVGL): %s... clearing "
+                     "screen in %d",
+                     scheme->name, i);
+            lv_label_set_text_fmt(label, "%s\n%d...", scheme->name,
+                                  i);
+            lv_obj_center(label);
+            lv_refr_now(disp);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
 
     lv_obj_clean(scr);
     lv_refr_now(disp);
-#if 0
-    ESP_LOGI(TAG, "Boot check (LVGL): light background, dark text");
-    lv_obj_set_style_bg_color(scr, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
-    lv_label_set_text(label, "Dark on light");
-    lv_obj_center(label);
-
-    example_flush_lvgl_to_panel(disp,
-                                &(lv_area_t){.x1 = 0,
-                                             .y1 = 0,
-                                             .x2 = EXAMPLE_SH1106_H_RES - 1,
-                                             .y2 = EXAMPLE_SH1106_V_RES - 1},
-                                s_LVGL_framebuffer);
-
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
-
-    lv_label_set_text(label, "Clearing screen\nin 3...");
-    example_flush_lvgl_to_panel(disp,
-                                &(lv_area_t){.x1 = 0,
-                                             .y1 = 0,
-                                             .x2 = EXAMPLE_SH1106_H_RES - 1,
-                                             .y2 = EXAMPLE_SH1106_V_RES - 1},
-                                s_LVGL_framebuffer);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    lv_label_set_text(label, "Clearing screen\nin 2...");
-    example_flush_lvgl_to_panel(disp,
-                                &(lv_area_t){.x1 = 0,
-                                             .y1 = 0,
-                                             .x2 = EXAMPLE_SH1106_H_RES - 1,
-                                             .y2 = EXAMPLE_SH1106_V_RES - 1},
-                                s_LVGL_framebuffer);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    lv_label_set_text(label, "Clearing screen\nin 1...");
-    example_flush_lvgl_to_panel(disp,
-                                &(lv_area_t){.x1 = 0,
-                                             .y1 = 0,
-                                             .x2 = EXAMPLE_SH1106_H_RES - 1,
-                                             .y2 = EXAMPLE_SH1106_V_RES - 1},
-                                s_LVGL_framebuffer);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    ESP_LOGD(TAG, "Boot check (LVGL) complete: clearing screen");
-    lv_obj_clean(scr);
-    example_flush_lvgl_to_panel(disp,
-                                &(lv_area_t){.x1 = 0,
-                                             .y1 = 0,
-                                             .x2 = EXAMPLE_SH1106_H_RES - 1,
-                                             .y2 = EXAMPLE_SH1106_V_RES - 1},
-                                s_LVGL_framebuffer);
-#endif
 }
 
 /**
@@ -536,7 +490,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Setting LVGL display buffers and render mode full");
     lv_display_set_buffers(display, s_LVGL_framebuffer, NULL,
                            sizeof(s_LVGL_framebuffer),
-                           LV_DISPLAY_RENDER_MODE_FULL);
+                           LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     ESP_LOGI(TAG,
              "Register LVGL callback for flushing display buffer to the panel");
@@ -561,8 +515,6 @@ void app_main(void)
     lv_refr_now(display);
     ESP_LOGD(TAG, "LVGL default theme state flushed");
     vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
-
-    lv_display_set_antialiasing(display, true);
 
 #if 1
     ESP_LOGI(TAG, "Performing LVGL boot checks");
