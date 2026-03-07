@@ -37,8 +37,8 @@ static const char *TAG = "example";
 // sizing, etc.
 enum
 {
-    EXAMPLE_SH1106_H_RES         = 64,
-    EXAMPLE_SH1106_V_RES         = 128,
+    EXAMPLE_SH1106_H_RES         = 128,
+    EXAMPLE_SH1106_V_RES         = 64,
     EXAMPLE_SH1106_ROWS_PER_BYTE = 8
 };
 
@@ -188,7 +188,7 @@ static void example_lvgl_boot_checks(lv_display_t *disp)
         lv_obj_center(label);
     }
     _lock_release(&s_lvgl_api_lock);
-
+#if 0
     vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
 
     _lock_acquire(&s_lvgl_api_lock);
@@ -202,6 +202,7 @@ static void example_lvgl_boot_checks(lv_display_t *disp)
     _lock_release(&s_lvgl_api_lock);
 
     vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+#endif
 }
 
 static void example_flush_lvgl_to_panel(lv_display_t    *disp,
@@ -264,38 +265,57 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
 
     for (int32_t y = y1; y <= y2; ++y)
     {
+        // Offset within the LVGL pixel map for the start of this row
         const uint32_t lvgl_px_map_y_offset = (y - y1) * px_map_bytes_per_row;
 
+        // SH1106 page for the current row
         const uint32_t sh1106_page = y / EXAMPLE_SH1106_PAGE_HEIGHT;
-        const uint32_t sh1106_page_pixel_bit =
-            1 << (y % EXAMPLE_SH1106_PAGE_HEIGHT);
+
+        // SH1106 buffer offset for the start of the current page
+        const uint32_t sh1106_page_offset = sh1106_page * EXAMPLE_SH1106_H_RES;
+
+        // SH1106 bit mask for the current row within the page
+        const uint32_t sh1106_row_mask = 1 << (y % EXAMPLE_SH1106_PAGE_HEIGHT);
 
         for (int32_t x = x1; x <= x2; ++x)
         {
-
+            // Offset from the beginning of the current row within the LVGL
+            // pixel map for the current column
             const uint32_t lvgl_px_map_x_offset =
                 (x - x1) / EXAMPLE_LVGL_PIXELS_PER_BYTE;
 
+            // Bit mask for the current pixel within the byte in the LVGL pixel
+            // map
             const uint8_t lvgl_px_map_pixel_bit_mask =
                 1 << ((EXAMPLE_LVGL_PIXELS_PER_BYTE - 1) -
                       (x % EXAMPLE_LVGL_PIXELS_PER_BYTE));
 
+            // Byte in the LVGL pixel map containing the current pixel
+            // row offset + column offset
             const uint8_t lvgl_px_map_byte_containing_pixel =
                 px_map[lvgl_px_map_y_offset + lvgl_px_map_x_offset];
+
+            // Determine if the current pixel is set (1) or not (0) in the LVGL
+            // pixel map by applying the bit mask to the byte containing the
+            // pixel.
+            uint32_t px_pixel_is_set = !!(lvgl_px_map_byte_containing_pixel &
+                                          lvgl_px_map_pixel_bit_mask);
+
+            // SH1106 byte offset for the current pixel is the page offset + the
+            // column (x coordinate)
+            const uint32_t sh1106_byte_offset_for_pixel =
+                sh1106_page_offset + x;
 
             // Remove conditional by computing both possibilities and using the
             // boolean as the index to choose
             const uint8_t reset_set_bit_in_byte[] = {
-                s_oled_buffer[sh1106_page * EXAMPLE_SH1106_H_RES + x] &
-                    ~sh1106_page_pixel_bit,
-                s_oled_buffer[sh1106_page * EXAMPLE_SH1106_H_RES + x] |
-                    sh1106_page_pixel_bit};
+                s_oled_buffer[sh1106_byte_offset_for_pixel] &
+                    ~sh1106_row_mask, // reset bit
+                s_oled_buffer[sh1106_byte_offset_for_pixel] |
+                    sh1106_row_mask}; // set bit
 
-            uint32_t reset_or_set = !!(lvgl_px_map_byte_containing_pixel &
-                                       lvgl_px_map_pixel_bit_mask);
-
-            s_oled_buffer[sh1106_page * EXAMPLE_SH1106_H_RES + x] =
-                reset_set_bit_in_byte[reset_or_set];
+            s_oled_buffer[sh1106_byte_offset_for_pixel] =
+                reset_set_bit_in_byte[px_pixel_is_set];
         }
     }
 
