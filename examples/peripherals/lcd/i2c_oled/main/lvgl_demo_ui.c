@@ -7,12 +7,15 @@
 #include "lvgl.h"
 
 #include "core/lv_obj.h"
+#include "core/lv_obj_style.h"
 #include "core/lv_obj_style_gen.h"
 #include "display/lv_display.h"
 #include "esp_log.h"
 #include "misc/lv_color.h"
 #include "misc/lv_style_gen.h"
 #include "misc/lv_text.h"
+#include "widgets/spinner/lv_spinner.h"
+#include "widgets/table/lv_table.h"
 
 #define TAG "lvgl_demo_ui"
 
@@ -32,7 +35,7 @@ void example_lvgl_ui(lv_display_t *disp)
     lv_obj_add_style(scr, &s_style, LV_PART_MAIN);
 
     lv_obj_t *label = lv_label_create(scr);
-
+    lv_obj_add_style(label, &s_style, LV_PART_MAIN);
     lv_label_set_text(label, "Loaded OK.");
     lv_obj_center(label);
 }
