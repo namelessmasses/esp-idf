@@ -1,0 +1,16 @@
+BasedOnStyle: LLVM
+UseTab: Never
+IndentWidth: 4
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveMacros: true
+BreakBeforeBraces: Allman
+IncludeBlocks: Regroup
+IncludeCategories:
+    - Regex:     '^"lvgl.h"$'
+      Priority:  -100
+    - Regex:     '^"freertos/FreeRTOS.h"$'
+      Priority:  -100
+    - Regex:     '.*'
+      Priority:  1
+SortIncludes: true
