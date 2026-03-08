@@ -33,7 +33,8 @@ static const char *TAG = "example";
 #define I2C_MASTER_TIMEOUT_MS     1000
 
 #define SHT41_SENSOR_ADDR 0x44 /*!< Address of the SHT41 sensor */
-enum
+
+typedef enum
 {
     CMD_READ_HIGH_PRECISION   = 0xFD,
     CMD_READ_MEDIUM_PRECISION = 0xF6,
@@ -46,6 +47,35 @@ enum
     CMD_HEATED_20mW_1000ms    = 0x1E,
     CMD_HEATED_20mW_100ms     = 0x15
 } sht41_command_t;
+
+static const char *get_cmd_string(sht41_command_t cmd)
+{
+    switch (cmd)
+    {
+    case CMD_READ_HIGH_PRECISION:
+        return "High Precision";
+    case CMD_READ_MEDIUM_PRECISION:
+        return "Medium Precision";
+    case CMD_READ_LOW_PRECISION:
+        return "Low Precision";
+    case CMD_READ_SERIAL_NUMBER:
+        return "Read Serial Number";
+    case CMD_HEATED_200mW_1000ms:
+        return "Heated 200mW 1000ms";
+    case CMD_HEATED_200mW_100ms:
+        return "Heated 200mW 100ms";
+    case CMD_HEATED_110mW_1000ms:
+        return "Heated 110mW 1000ms";
+    case CMD_HEATED_110mW_100ms:
+        return "Heated 110mW 100ms";
+    case CMD_HEATED_20mW_1000ms:
+        return "Heated 20mW 1000ms";
+    case CMD_HEATED_20mW_100ms:
+        return "Heated 20mW 100ms";
+    default:
+        return "Unknown Command";
+    }
+}
 
 /**
  * @brief i2c master initialization
@@ -119,8 +149,55 @@ typedef struct
 } heating_config_t;
 
 static esp_err_t sensor_get_reading(i2c_master_dev_handle_t dev_handle,
-                                    sht41_data_t           *data,
-                                    const heating_config_t *heating_config)
+                                    sht41_command_t command, sht41_data_t *data,
+                                    uint32_t wait_duration_ms)
+{
+    ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, (uint8_t const *)&command,
+                                        1, I2C_MASTER_TIMEOUT_MS));
+
+    vTaskDelay(pdMS_TO_TICKS(wait_duration_ms));
+
+    uint8_t   raw_data[6];
+    esp_err_t res = ESP_ERR_TIMEOUT;
+    for (int i = 0; i < 3; i++)
+    {
+        res = i2c_master_receive(dev_handle, raw_data, sizeof(raw_data),
+                                 I2C_MASTER_TIMEOUT_MS);
+        if (res == ESP_OK)
+        {
+            break;
+        }
+
+        if (res == ESP_ERR_TIMEOUT)
+        {
+            ESP_LOGW(TAG, "I2C bus is busy, retrying in %ums...",
+                     wait_duration_ms);
+        }
+        else
+        {
+            ESP_LOGW(TAG, "Error reading from sensor: %s, retrying in %ums...",
+                     esp_err_to_name(res), wait_duration_ms);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(wait_duration_ms));
+    }
+
+    if (res != ESP_OK)
+    {
+        ESP_LOGE(TAG,
+                 "Failed to read data from sensor after multiple attempts");
+        return res;
+    }
+
+    process_sht41_data(raw_data, data);
+
+    return ESP_OK;
+}
+
+static esp_err_t
+sensor_get_reading_with_heating(i2c_master_dev_handle_t dev_handle,
+                                sht41_data_t           *data,
+                                const heating_config_t *heating_config)
 {
     uint8_t  command          = CMD_READ_HIGH_PRECISION;
     uint16_t wait_duration_ms = 10;
@@ -168,45 +245,7 @@ static esp_err_t sensor_get_reading(i2c_master_dev_handle_t dev_handle,
         }
     }
 
-    ESP_ERROR_CHECK(
-        i2c_master_transmit(dev_handle, &command, 1, I2C_MASTER_TIMEOUT_MS));
-
-    vTaskDelay(pdMS_TO_TICKS(wait_duration_ms));
-
-    uint8_t   raw_data[6];
-    esp_err_t res = ESP_ERR_TIMEOUT;
-    for (int i = 0; i < 3; i++)
-    {
-        res = i2c_master_receive(dev_handle, raw_data, sizeof(raw_data),
-                                 I2C_MASTER_TIMEOUT_MS);
-        if (res == ESP_OK)
-        {
-            break;
-        }
-
-        if (res == ESP_ERR_TIMEOUT)
-        {
-            ESP_LOGW(TAG, "I2C bus is busy, retrying in 10ms...");
-        }
-        else
-        {
-            ESP_LOGW(TAG, "Error reading from sensor: %s, retrying in 10ms...",
-                     esp_err_to_name(res));
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    if (res != ESP_OK)
-    {
-        ESP_LOGE(TAG,
-                 "Failed to read data from sensor after multiple attempts");
-        return res;
-    }
-
-    process_sht41_data(raw_data, data);
-
-    return ESP_OK;
+    return sensor_get_reading(dev_handle, command, data, wait_duration_ms);
 }
 
 void app_main(void)
@@ -241,10 +280,21 @@ void app_main(void)
 
     ESP_LOGI(TAG, "SHT41 Serial Number: 0x%08X", serial_number);
 
-    ESP_LOGI(TAG, "Requesting measurement from SHT41 sensor");
-    sht41_data_t data_struct;
-    ESP_ERROR_CHECK(sensor_get_reading(dev_handle, &data_struct, NULL));
-    print_sht41_data(&data_struct);
+    while (1)
+    {
+        sht41_command_t command[] = {CMD_READ_HIGH_PRECISION,
+                                     CMD_READ_MEDIUM_PRECISION,
+                                     CMD_READ_LOW_PRECISION};
+
+        for (uint32_t cmd = 0; cmd < 3; ++cmd)
+        {
+            ESP_LOGI(TAG, "Requesting %s measurement from SHT41 sensor",
+                     get_cmd_string(command[cmd]));
+            sht41_data_t response_data;
+            ESP_ERROR_CHECK(sensor_get_reading(dev_handle, command[cmd],
+                                               &response_data, 10));
+            print_sht41_data(&response_data);
+        }
 
 #if 0
     ESP_LOGI(TAG, "Requesting measurement with heating from SHT41 sensor");
@@ -252,4 +302,6 @@ void app_main(void)
     ESP_ERROR_CHECK(sensor_get_reading(dev_handle, &data_struct, &heating_config));
     print_sht41_data(&data_struct);
 #endif
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
 }
