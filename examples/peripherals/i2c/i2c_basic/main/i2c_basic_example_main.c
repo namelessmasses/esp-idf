@@ -173,12 +173,12 @@ static esp_err_t sensor_get_reading(i2c_master_dev_handle_t dev_handle,
 
     vTaskDelay(pdMS_TO_TICKS(wait_duration_ms));
 
-    uint8_t raw_data[6];
+    uint8_t   raw_data[6];
     esp_err_t res = ESP_ERR_TIMEOUT;
     for (int i = 0; i < 3; i++)
     {
-        res = i2c_master_receive(
-            dev_handle, raw_data, sizeof(raw_data), I2C_MASTER_TIMEOUT_MS);
+        res = i2c_master_receive(dev_handle, raw_data, sizeof(raw_data),
+                                 I2C_MASTER_TIMEOUT_MS);
         if (res == ESP_OK)
         {
             break;
@@ -199,7 +199,8 @@ static esp_err_t sensor_get_reading(i2c_master_dev_handle_t dev_handle,
 
     if (res != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to read data from sensor after multiple attempts");
+        ESP_LOGE(TAG,
+                 "Failed to read data from sensor after multiple attempts");
         return res;
     }
 
@@ -245,8 +246,10 @@ void app_main(void)
     ESP_ERROR_CHECK(sensor_get_reading(dev_handle, &data_struct, NULL));
     print_sht41_data(&data_struct);
 
+#if 0
     ESP_LOGI(TAG, "Requesting measurement with heating from SHT41 sensor");
     heating_config_t heating_config = {.power = POWER_110mW, .duration = LONG};
     ESP_ERROR_CHECK(sensor_get_reading(dev_handle, &data_struct, &heating_config));
     print_sht41_data(&data_struct);
+#endif
 }
