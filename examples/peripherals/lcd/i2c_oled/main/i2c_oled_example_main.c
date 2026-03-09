@@ -8,6 +8,7 @@
 #include "lvgl.h"
 
 #include "core/lv_obj.h"
+#include "core/lv_obj_style.h"
 #include "core/lv_obj_style_gen.h"
 #include "display/lv_display.h"
 #include "driver/i2c_master.h"
@@ -21,15 +22,21 @@
 #include "font/lv_font.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
+#include "layouts/grid/lv_grid.h"
+#include "layouts/lv_layout.h"
 #include "lv_api_map_v8.h"
 #include "misc/lv_area.h"
 #include "misc/lv_color.h"
+#include "misc/lv_style.h"
 #include "misc/lv_style_gen.h"
 #include "misc/lv_text.h"
+#include "misc/lv_timer.h"
 #include "sht41.h"
+#include "widgets/scale/lv_scale.h"
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/lock.h>
 #include <sys/param.h>
@@ -387,7 +394,108 @@ static sht41_poll_arg_t s_sht41_poll_arg = {
     .dev_handle = NULL,
 };
 
-extern void example_lvgl_ui(lv_display_t *disp);
+static struct
+{
+    const int32_t layout_column_dsc[3];
+    const int32_t layout_row_dsc[3];
+    lv_style_t    style;
+    lv_obj_t     *temp;
+    lv_obj_t     *rh;
+    lv_obj_t     *voltage;
+    lv_obj_t     *power;
+} s_ui = {.layout_column_dsc = {64, 64, LV_GRID_TEMPLATE_LAST},
+          .layout_row_dsc    = {32, 32, LV_GRID_TEMPLATE_LAST},
+          .style             = {0},
+          .temp              = NULL,
+          .rh                = NULL,
+          .voltage           = NULL,
+          .power             = NULL};
+static void ui_initialize(lv_display_t *disp)
+{
+    lv_style_init(&s_ui.style);
+    lv_style_set_bg_color(&s_ui.style, lv_color_black());
+    lv_style_set_text_color(&s_ui.style, lv_color_white());
+    lv_style_set_text_font(&s_ui.style, &lv_font_unscii_8);
+    lv_style_set_text_align(&s_ui.style, LV_TEXT_ALIGN_CENTER);
+    lv_style_set_pad_column(&s_ui.style, 2);
+
+    lv_obj_t *scr = lv_display_get_screen_active(disp);
+    lv_obj_clean(scr);
+    lv_obj_add_style(scr, &s_ui.style, LV_PART_MAIN);
+
+    lv_obj_t * label1 = lv_label_create(scr);
+    lv_label_set_text(label1, LV_SYMBOL_OK);
+    lv_obj_add_style(label1, &s_ui.style, LV_PART_MAIN);
+
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    lv_obj_clean(scr);
+    lv_obj_add_style(scr, &s_ui.style, LV_PART_MAIN);
+
+    lv_obj_set_grid_dsc_array(scr, s_ui.layout_column_dsc, s_ui.layout_row_dsc);
+    lv_obj_add_style(scr, &s_ui.style, LV_PART_MAIN);
+
+    s_ui.temp = lv_label_create(scr);
+    lv_obj_add_style(s_ui.temp, &s_ui.style, LV_PART_MAIN);
+    lv_label_set_text(s_ui.temp, "--.--C");
+    lv_obj_set_grid_cell(s_ui.temp, LV_GRID_ALIGN_START, 0, 1,
+                         LV_GRID_ALIGN_CENTER, 0, 1);
+
+    s_ui.rh = lv_label_create(scr);
+    lv_obj_add_style(s_ui.rh, &s_ui.style, LV_PART_MAIN);
+    lv_label_set_text(s_ui.rh, "--.--%");
+    lv_obj_set_grid_cell(s_ui.rh, LV_GRID_ALIGN_START, 1, 1,
+                         LV_GRID_ALIGN_CENTER, 0, 1);
+
+#if VOLTAGE_SCALE
+    s_ui.voltage = lv_scale_create(scr);
+    lv_obj_add_style(s_ui.voltage, &s_ui.style, LV_PART_MAIN);
+    lv_scale_set_label_show(s_ui.voltage, false);
+    lv_scale_set_total_tick_count(s_ui.voltage, 41);
+    lv_scale_set_major_tick_every(s_ui.voltage, 10);
+    lv_obj_set_style_length(s_ui.voltage, 2, LV_PART_ITEMS);
+    lv_obj_set_style_length(s_ui.voltage, 4, LV_PART_INDICATOR);
+    lv_scale_set_range(s_ui.voltage, 10, 14);
+    lv_scale_set_angle_range(s_ui.voltage, 270);
+    lv_scale_set_rotation(s_ui.voltage, 135);
+
+    lv_obj_t *voltage_needle = lv_line_create(s_ui.voltage);
+    lv_obj_set_style_line_width(voltage_needle, 2, LV_PART_MAIN);
+    lv_obj_set_style_line_rounded(voltage_needle, true, LV_PART_MAIN);
+    lv_scale_set_line_needle_value(s_ui.voltage, voltage_needle, -5, 13);
+#else
+    s_ui.voltage = lv_label_create(scr);
+    lv_obj_add_style(s_ui.voltage, &s_ui.style, LV_PART_MAIN);
+    lv_label_set_text(s_ui.voltage, "--.-- V");
+
+#endif
+    lv_obj_set_grid_cell(s_ui.voltage, LV_GRID_ALIGN_CENTER, 0, 1,
+                         LV_GRID_ALIGN_CENTER, 1, 1);
+
+    s_ui.power = lv_label_create(scr);
+    lv_obj_add_style(s_ui.power, &s_ui.style, LV_PART_MAIN);
+    lv_label_set_text(s_ui.power, "---- W");
+    lv_obj_set_grid_cell(s_ui.power, LV_GRID_ALIGN_START, 1, 1,
+                         LV_GRID_ALIGN_CENTER, 1, 1);
+}
+
+static void ui_update(lv_timer_t *timer)
+{
+    (void)timer;
+
+    int32_t data_index = atomic_load(&s_temperature_humidity.index);
+
+    char temp_str[16];
+    snprintf(temp_str, sizeof(temp_str), "%.2fC\n%.2fF",
+             s_temperature_humidity.data[data_index].temperature_celcius,
+             s_temperature_humidity.data[data_index].temperature_fahrenheit);
+
+    char rh_str[16];
+    snprintf(rh_str, sizeof(rh_str), "RH\n%.2f%%",
+             s_temperature_humidity.data[data_index].relative_humidity);
+
+    lv_label_set_text(s_ui.temp, temp_str);
+    lv_label_set_text(s_ui.rh, rh_str);
+}
 
 void app_main(void)
 {
@@ -405,6 +513,21 @@ void app_main(void)
         .trans_queue_depth = 0,
         .flags = {.enable_internal_pullup = true, .allow_pd = false}};
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_bus));
+
+    ESP_LOGI(TAG, "Poll the SHT41 sensor every second");
+    ESP_ERROR_CHECK(sht41_bus_add_device(i2c_bus, SHT41_SENSOR_ADDR,
+                                         &s_sht41_poll_arg.dev_handle));
+
+    esp_timer_create_args_t sht41_poll_timer_args = {
+        .callback              = sht41_poll,
+        .arg                   = &s_sht41_poll_arg,
+        .dispatch_method       = ESP_TIMER_TASK,
+        .name                  = "sht41_poll_timer",
+        .skip_unhandled_events = true};
+    esp_timer_handle_t sht41_poll_timer;
+    ESP_ERROR_CHECK(
+        esp_timer_create(&sht41_poll_timer_args, &sht41_poll_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(sht41_poll_timer, 1000000));
 
     ESP_LOGI(TAG, "Install SH1106 panel I/O I2C: (%dx%d)", EXAMPLE_SH1106_H_RES,
              EXAMPLE_SH1106_V_RES);
@@ -478,35 +601,20 @@ void app_main(void)
     esp_lcd_panel_io_register_event_callbacks(
         io_handle, &esp_lcd_panel_callbacks, display);
 
-    ESP_LOGI(TAG, "Creating LVGL event loop task");
-    xTaskCreate(example_lvgl_event_loop, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE,
-                NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
-
     // After this point access to the LVGL API must be protected by the
     // s_lvgl_api_lock mutex, as the LVGL event loop is running in a separate
     // task and may call back into user code (e.g.,
     // example_notify_lvgl_panel_flush_complete) that also needs to call LVGL
     // API functions.
 
-    ESP_LOGI(TAG, "Display LVGL UI");
-    _lock_acquire(&s_lvgl_api_lock);
-    example_lvgl_ui(display);
-    _lock_release(&s_lvgl_api_lock);
+    ESP_LOGI(TAG, "Initializing LVGL UI");
+    ui_initialize(display);
 
-    ESP_LOGI(TAG, "Poll the SHT41 sensor every second");
-    ESP_ERROR_CHECK(sht41_bus_add_device(i2c_bus, SHT41_SENSOR_ADDR,
-                                         &s_sht41_poll_arg.dev_handle));
+    ESP_LOGI(TAG, "Creating LVGL event loop task");
+    xTaskCreate(example_lvgl_event_loop, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE,
+                NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
 
-    esp_timer_create_args_t sht41_poll_timer_args = {
-        .callback              = sht41_poll,
-        .arg                   = &s_sht41_poll_arg,
-        .dispatch_method       = ESP_TIMER_TASK,
-        .name                  = "sht41_poll_timer",
-        .skip_unhandled_events = true};
-    esp_timer_handle_t sht41_poll_timer;
-    ESP_ERROR_CHECK(
-        esp_timer_create(&sht41_poll_timer_args, &sht41_poll_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(sht41_poll_timer, 1000000));
+    lv_timer_create(ui_update, 100, NULL);
 
     ESP_LOGI(TAG, "Ending app_main");
 }
