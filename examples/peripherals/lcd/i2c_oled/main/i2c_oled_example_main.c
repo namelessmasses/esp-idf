@@ -26,6 +26,7 @@
 #include "misc/lv_color.h"
 #include "misc/lv_style_gen.h"
 #include "misc/lv_text.h"
+#include "sht41.h"
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -354,6 +355,38 @@ static void example_lvgl_event_loop(void *no_args)
     }
 }
 
+static struct
+{
+    sht41_data_t        data[2];
+    atomic_int_fast32_t index;
+} s_temperature_humidity = {.data = {{0}}, .index = -1};
+
+typedef struct
+{
+    i2c_master_dev_handle_t dev_handle;
+} sht41_poll_arg_t;
+
+static void sht41_poll(void *arg)
+{
+    sht41_poll_arg_t *poll_arg = (sht41_poll_arg_t *)arg;
+
+    int32_t data_index = atomic_load(&s_temperature_humidity.index);
+    ++data_index;
+    data_index &= 1; // toggle between 0 and 1
+
+    ESP_ERROR_CHECK(
+        sht41_get_reading(poll_arg->dev_handle, CMD_READ_LOW_PRECISION,
+                          &s_temperature_humidity.data[data_index], 1000));
+
+    atomic_store(&s_temperature_humidity.index, data_index);
+
+    sht41_print_data(&s_temperature_humidity.data[data_index]);
+}
+
+static sht41_poll_arg_t s_sht41_poll_arg = {
+    .dev_handle = NULL,
+};
+
 extern void example_lvgl_ui(lv_display_t *disp);
 
 void app_main(void)
@@ -459,6 +492,21 @@ void app_main(void)
     _lock_acquire(&s_lvgl_api_lock);
     example_lvgl_ui(display);
     _lock_release(&s_lvgl_api_lock);
+
+    ESP_LOGI(TAG, "Poll the SHT41 sensor every second");
+    ESP_ERROR_CHECK(sht41_bus_add_device(i2c_bus, SHT41_SENSOR_ADDR,
+                                         &s_sht41_poll_arg.dev_handle));
+
+    esp_timer_create_args_t sht41_poll_timer_args = {
+        .callback              = sht41_poll,
+        .arg                   = &s_sht41_poll_arg,
+        .dispatch_method       = ESP_TIMER_TASK,
+        .name                  = "sht41_poll_timer",
+        .skip_unhandled_events = true};
+    esp_timer_handle_t sht41_poll_timer;
+    ESP_ERROR_CHECK(
+        esp_timer_create(&sht41_poll_timer_args, &sht41_poll_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(sht41_poll_timer, 1000000));
 
     ESP_LOGI(TAG, "Ending app_main");
 }
