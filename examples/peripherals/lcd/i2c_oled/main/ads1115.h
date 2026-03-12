@@ -164,6 +164,8 @@ typedef struct
 
 void ads1115_log_register(esp_log_level_t lvl, ads1115_register_t const *const reg);
 
+float ads1115_get_voltage(ads1115_config_pga_t pga, ads1115_conversion_register_t const * const conversion);
+
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
                                  const uint8_t            ads1115_i2c_addr,
                                  i2c_master_dev_handle_t *ads1115_dev_handle);
