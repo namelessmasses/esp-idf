@@ -6,6 +6,7 @@
 #include "sdkconfig.h"
 #include <esp_err.h>
 #include <stdint.h>
+#include <math.h>
 
 static const char *const TAG = "ads1115";
 
@@ -236,6 +237,26 @@ void ads1115_log_register(esp_log_level_t                 lvl,
     default:
         ESP_LOGW(TAG, "Unknown register id");
     }
+}
+
+float ads1115_get_voltage(ads1115_config_pga_t pga, ads1115_conversion_register_t const * const conversion)
+{
+    float FS = 0.f;
+    switch (pga)
+    {
+case ads1115_config_PGA_6_144V   : FS = 6.144f; break;
+case ads1115_config_PGA_4_096V   : FS = 4.096f; break;
+case ads1115_config_PGA_2_048V   : FS = 2.048f; break;
+case ads1115_config_PGA_1_024V   : FS = 1.024f; break;
+case ads1115_config_PGA_0_512V   : FS = 0.512f; break;
+case ads1115_config_PGA_0_256V   : 
+case ads1115_config_PGA_RESERVED1:
+case ads1115_config_PGA_RESERVED2        : FS = 0.256f; break;
+default:
+        return NAN;
+    }
+
+    return FS * conversion->conversion_result / ((2 << 15) - 1);
 }
 
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
