@@ -365,42 +365,13 @@ static void example_lvgl_event_loop(void *no_args)
 
 static struct
 {
-    sht41_data_t        data[2];
+    ads1115_register_t  ads1115_config;
+    ads1115_register_t  ads1115_reading;
+    float               voltage_data[2];
+    sht41_data_t        temp_humid_data[2];
     atomic_int_fast32_t index;
-} s_temperature_humidity = {.data = {{0}}, .index = -1};
-
-typedef struct
-{
-    i2c_master_dev_handle_t dev_handle;
-} sht41_poll_arg_t;
-
-static void sht41_poll(void *arg)
-{
-    sht41_poll_arg_t *poll_arg = (sht41_poll_arg_t *)arg;
-
-    int32_t data_index = atomic_load(&s_temperature_humidity.index);
-    ++data_index;
-    data_index &= 1; // toggle between 0 and 1
-
-    ESP_ERROR_CHECK(
-        sht41_get_reading(poll_arg->dev_handle, CMD_READ_LOW_PRECISION,
-                          &s_temperature_humidity.data[data_index], 1000));
-
-    atomic_store(&s_temperature_humidity.index, data_index);
-
-    sht41_print_data(&s_temperature_humidity.data[data_index]);
-}
-
-static sht41_poll_arg_t s_sht41_poll_arg = {.dev_handle = NULL};
-
-static struct
-{
-    ads1115_register_t  config;
-    ads1115_register_t  reading;
-    float               data[2];
-    atomic_int_fast32_t index;
-} s_voltage = {
-    .config =
+} s_sensor_data = {
+    .ads1115_config =
         {.address.val = ADS1115_REG_CONFIG,
          .reg.config  = {.OS   = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION,
                          .MUX  = ads1115_config_MUX_AIN0_AIN3,
@@ -411,33 +382,44 @@ static struct
                          .COMP_POL  = ads1115_config_COMP_POL_DEFAULT,
                          .COMP_LAT  = ads1115_config_COMP_LAT_DEFAULT,
                          .COMP_QUE  = ads1115_config_COMP_QUE_ASSERT_AFTER_ONE}},
-    .reading = {.address.val = ADS1115_REG_CONVERSION, .reg.conversion = {0}},
-    .data    = {0.f},
-    .index   = -1};
+    .ads1115_reading = {.address.val    = ADS1115_REG_CONVERSION,
+                        .reg.conversion = {0}},
+    .voltage_data    = {0.f},
+    .temp_humid_data = {{0}},
+    .index           = -1};
 
 typedef struct
 {
-    i2c_master_dev_handle_t dev_handle;
-} ads1115_poll_arg_t;
+    i2c_master_dev_handle_t sht41_handle;
+    i2c_master_dev_handle_t ads1115_handle;
+} poll_sensors_arg_t;
 
-static ads1115_poll_arg_t s_ads1115_poll_arg = {.dev_handle = NULL};
+static poll_sensors_arg_t s_poll_sensors_arg = {.sht41_handle   = 0,
+                                                .ads1115_handle = 0};
 
-static void ads1115_poll(void *arg)
+static void poll_sensors(void *arg)
 {
-    ads1115_poll_arg_t *poll_arg = (ads1115_poll_arg_t *)arg;
+    poll_sensors_arg_t *poll_arg = (poll_sensors_arg_t *)arg;
 
-    int32_t data_index = atomic_load(&s_voltage.index);
+    int32_t data_index = atomic_load(&s_sensor_data.index);
     ++data_index;
-    data_index &= 1;
+    data_index &= 1; // toggle between 0 and 1
 
-    s_voltage.reading.address.val = ADS1115_REG_CONVERSION;
-    ads1115_read_register(poll_arg->dev_handle, &s_voltage.reading);
-    s_voltage.data[data_index] = ads1115_get_voltage(
-        s_voltage.config.reg.config.PGA, &s_voltage.reading.reg.conversion);
+    ESP_ERROR_CHECK(
+        sht41_get_reading(poll_arg->sht41_handle, CMD_READ_LOW_PRECISION,
+                          &s_sensor_data.temp_humid_data[data_index], 1000));
 
-    atomic_store(&s_voltage.index, data_index);
+    ESP_ERROR_CHECK(ads1115_read_register(poll_arg->ads1115_handle,
+                                          &s_sensor_data.ads1115_reading));
 
-    ads1115_log_register(ESP_LOG_DEBUG, &s_voltage.reading);
+    s_sensor_data.voltage_data[data_index] =
+        ads1115_get_voltage(s_sensor_data.ads1115_config.reg.config.PGA,
+                            &s_sensor_data.ads1115_reading.reg.conversion);
+
+    atomic_store(&s_sensor_data.index, data_index);
+
+    sht41_print_data(&s_sensor_data.temp_humid_data[data_index]);
+    ads1115_log_register(ESP_LOG_DEBUG, &s_sensor_data.ads1115_reading);
 }
 
 static struct
@@ -529,25 +511,23 @@ static void ui_update(lv_timer_t *timer)
 {
     (void)timer;
 
-    int32_t temp_data_index    = atomic_load(&s_temperature_humidity.index);
-    int32_t voltage_data_index = atomic_load(&s_voltage.index);
+    int32_t data_index = atomic_load(&s_sensor_data.index);
 
     char temp_str[16];
-    snprintf(
-        temp_str, sizeof(temp_str), "%.2fC\n%.2fF",
-        s_temperature_humidity.data[temp_data_index].temperature_celcius,
-        s_temperature_humidity.data[temp_data_index].temperature_fahrenheit);
+    snprintf(temp_str, sizeof(temp_str), "%.2fC\n%.2fF",
+             s_sensor_data.temp_humid_data[data_index].temperature_celcius,
+             s_sensor_data.temp_humid_data[data_index].temperature_fahrenheit);
 
     char rh_str[16];
     snprintf(rh_str, sizeof(rh_str), "RH\n%.2f%%",
-             s_temperature_humidity.data[temp_data_index].relative_humidity);
+             s_sensor_data.temp_humid_data[data_index].relative_humidity);
 
     lv_label_set_text(s_ui.temp, temp_str);
     lv_label_set_text(s_ui.rh, rh_str);
 
     char voltage_str[8] = {0};
     snprintf(voltage_str, sizeof(voltage_str), "%2.2fV",
-             s_voltage.data[voltage_data_index]);
+             s_sensor_data.voltage_data[data_index]);
 
     lv_label_set_text(s_ui.voltage, voltage_str);
 }
@@ -571,36 +551,24 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Poll the SHT41 sensor every second");
     ESP_ERROR_CHECK(sht41_bus_add_device(i2c_bus, SHT41_SENSOR_ADDR,
-                                         &s_sht41_poll_arg.dev_handle));
-
-    esp_timer_create_args_t sht41_poll_timer_args = {
-        .callback              = sht41_poll,
-        .arg                   = &s_sht41_poll_arg,
-        .dispatch_method       = ESP_TIMER_TASK,
-        .name                  = "sht41_poll_timer",
-        .skip_unhandled_events = true};
-    esp_timer_handle_t sht41_poll_timer;
-    ESP_ERROR_CHECK(
-        esp_timer_create(&sht41_poll_timer_args, &sht41_poll_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(sht41_poll_timer, 1000000));
+                                         &s_poll_sensors_arg.sht41_handle));
 
     ESP_ERROR_CHECK(ads1115_bus_add_device(i2c_bus, ADS1115_SENSOR_ADDR,
-                                           &s_ads1115_poll_arg.dev_handle));
+                                           &s_poll_sensors_arg.ads1115_handle));
 
-    ESP_ERROR_CHECK(ads1115_write_register(s_ads1115_poll_arg.dev_handle,
-                                           &s_voltage.config));
+    ESP_ERROR_CHECK(ads1115_write_register(s_poll_sensors_arg.ads1115_handle,
+                                           &s_sensor_data.ads1115_config));
 
-    esp_timer_create_args_t ads1115_poll_timer_args = {
-        .callback              = ads1115_poll,
-        .arg                   = &s_ads1115_poll_arg,
+    esp_timer_create_args_t poll_sensors_timer_args = {
+        .callback              = poll_sensors,
+        .arg                   = &s_poll_sensors_arg,
         .dispatch_method       = ESP_TIMER_TASK,
-        .name                  = "ads1115_poll_timer",
+        .name                  = "poll_sensors_timer",
         .skip_unhandled_events = true};
-
-    esp_timer_handle_t ads1115_poll_timer;
+    esp_timer_handle_t poll_sensors_timer;
     ESP_ERROR_CHECK(
-        esp_timer_create(&ads1115_poll_timer_args, &ads1115_poll_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(ads1115_poll_timer, 50000));
+        esp_timer_create(&poll_sensors_timer_args, &poll_sensors_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(poll_sensors_timer, 100000));
 
     ESP_LOGI(TAG, "Install SH1106 panel I/O I2C: (%dx%d)", EXAMPLE_SH1106_H_RES,
              EXAMPLE_SH1106_V_RES);
