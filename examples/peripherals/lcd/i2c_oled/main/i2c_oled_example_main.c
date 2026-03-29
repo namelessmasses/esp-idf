@@ -522,7 +522,7 @@ static void ui_update(lv_timer_t *timer)
              s_sensor_data.temp_humid_data[data_index].temperature_fahrenheit);
 
     char rh_str[16];
-    snprintf(rh_str, sizeof(rh_str), "RH\n%.2f%%",
+    snprintf(rh_str, sizeof(rh_str), "Rel.Hu.\n%.2f%%",
              s_sensor_data.temp_humid_data[data_index].relative_humidity);
 
     lv_label_set_text(s_ui.temp, temp_str);
