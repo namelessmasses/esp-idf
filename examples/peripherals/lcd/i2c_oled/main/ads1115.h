@@ -3,8 +3,8 @@
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
 #include "esp_err.h"
-#include <stdint.h>
 #include "esp_log_level.h"
+#include <stdint.h>
 
 #if !defined(ADS1115_SENSOR_ADDR)
 #define ADS1115_SENSOR_ADDR 0x48 /*!< Address of the ADS1115 sensor */
@@ -120,24 +120,21 @@ typedef enum
     ads1115_config_COMP_QUE_DEFAULT           = ads1115_config_COMP_QUE_DISABLE
 } ads1115_config_comp_que_t;
 
-typedef struct
+typedef union
 {
-    union
+    struct
     {
-        struct
-        {
-            uint16_t OS : 1;
-            uint16_t MUX : 3;
-            uint16_t PGA : 3;
-            uint16_t MODE : 1;
-            uint16_t DR : 3;
-            uint16_t COMP_MODE : 1;
-            uint16_t COMP_POL : 1;
-            uint16_t COMP_LAT : 1;
-            uint16_t COMP_QUE : 2;
-        };
-        uint16_t val;
+        uint16_t OS : 1;
+        uint16_t MUX : 3;
+        uint16_t PGA : 3;
+        uint16_t MODE : 1;
+        uint16_t DR : 3;
+        uint16_t COMP_MODE : 1;
+        uint16_t COMP_POL : 1;
+        uint16_t COMP_LAT : 1;
+        uint16_t COMP_QUE : 2;
     };
+    uint16_t raw;
 } ads1115_config_register_t;
 
 typedef struct
@@ -150,6 +147,8 @@ typedef struct
     uint16_t value;
 } ads1115_hi_thresh_register_t;
 
+#pragma pack(push, 1)
+
 typedef struct
 {
     ads1115_address_pointer_register_t address;
@@ -159,12 +158,18 @@ typedef struct
         ads1115_config_register_t     config;
         ads1115_lo_thresh_register_t  lo_thresh;
         ads1115_hi_thresh_register_t  hi_thresh;
+        uint16_t                      raw;
     } reg;
 } ads1115_register_t;
 
-void ads1115_log_register(esp_log_level_t lvl, ads1115_register_t const *const reg);
+#pragma pack(pop)
 
-float ads1115_get_voltage(ads1115_config_pga_t pga, ads1115_conversion_register_t const * const conversion);
+void ads1115_log_register(esp_log_level_t                 lvl,
+                          ads1115_register_t const *const reg);
+
+float ads1115_get_voltage(
+    ads1115_config_pga_t                       pga,
+    ads1115_conversion_register_t const *const conversion);
 
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
                                  const uint8_t            ads1115_i2c_addr,
@@ -173,8 +178,8 @@ esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
 esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
                                 ads1115_register_t     *reg);
 
-esp_err_t ads1115_write_register(i2c_master_dev_handle_t ads1115_dev_handle,
-                                 const ads1115_register_t     *reg);
+esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
+                                 const ads1115_register_t *reg);
 /**
  * @brief Enable the conversion ready interrupt for the ADS1115 device.
  *
