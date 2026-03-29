@@ -409,8 +409,11 @@ static void poll_sensors(void *arg)
         sht41_get_reading(poll_arg->sht41_handle, CMD_READ_LOW_PRECISION,
                           &s_sensor_data.temp_humid_data[data_index], 1000));
 
+    s_sensor_data.ads1115_reading.reg.raw   = 0;
+    s_sensor_data.ads1115_reading.address.P = ADS1115_REG_CONVERSION;
     ESP_ERROR_CHECK(ads1115_read_register(poll_arg->ads1115_handle,
                                           &s_sensor_data.ads1115_reading));
+    ads1115_log_register(ESP_LOG_DEBUG, &s_sensor_data.ads1115_reading);
 
     s_sensor_data.voltage_data[data_index] =
         ads1115_get_voltage(s_sensor_data.ads1115_config.reg.config.PGA,
