@@ -395,6 +395,10 @@ typedef struct
     i2c_master_dev_handle_t ads1115_handle;
 } poll_sensors_arg_t;
 
+static float const R1            = 0.f;  // 983.f;
+static float const R2            = 1.0f; // 323.f;
+static float const VOLTAGE_SCALE = (R1 + R2) / R2;
+
 static poll_sensors_arg_t s_poll_sensors_arg = {.sht41_handle   = 0,
                                                 .ads1115_handle = 0};
 
@@ -418,12 +422,12 @@ static void poll_sensors(void *arg)
 
     s_sensor_data.voltage_data[data_index] =
         ads1115_get_voltage(s_sensor_data.ads1115_config.reg.config.PGA,
-                            &s_sensor_data.ads1115_reading.reg.conversion);
+                            &s_sensor_data.ads1115_reading.reg.conversion) *
+        VOLTAGE_SCALE;
 
     atomic_store(&s_sensor_data.index, data_index);
 
     sht41_print_data(&s_sensor_data.temp_humid_data[data_index]);
-    ads1115_log_register(ESP_LOG_DEBUG, &s_sensor_data.ads1115_reading);
 }
 
 static struct
