@@ -19,6 +19,7 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_sh1106.h"
 #include "esp_log.h"
+#include "esp_log_level.h"
 #include "esp_timer.h"
 #include "font/lv_font.h"
 #include "freertos/projdefs.h"
