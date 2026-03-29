@@ -552,16 +552,42 @@ void app_main(void)
         .flags = {.enable_internal_pullup = true, .allow_pd = false}};
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_bus));
 
-    ESP_LOGI(TAG, "Poll the SHT41 sensor every second");
+    ESP_LOGI(TAG, "Adding SHT41 to the I2C bus");
     ESP_ERROR_CHECK(sht41_bus_add_device(i2c_bus, SHT41_SENSOR_ADDR,
                                          &s_poll_sensors_arg.sht41_handle));
 
+    ESP_LOGI(TAG, "Adding ADS1115 to the I2C bus");
     ESP_ERROR_CHECK(ads1115_bus_add_device(i2c_bus, ADS1115_SENSOR_ADDR,
                                            &s_poll_sensors_arg.ads1115_handle));
 
+    ESP_LOGI(TAG, "Configuring ADS1115 - writing config register to start "
+                  "single conversion mode");
+    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_config);
     ESP_ERROR_CHECK(ads1115_write_register(s_poll_sensors_arg.ads1115_handle,
                                            &s_sensor_data.ads1115_config));
 
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    ESP_LOGI(TAG, "Reading back ADS1115 config register after writing config");
+    ads1115_register_t read_config = {.address.P      = ADS1115_REG_CONFIG,
+                                      .reg.config.raw = 0};
+    ESP_ERROR_CHECK(
+        ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config));
+    ads1115_log_register(ESP_LOG_INFO, &read_config);
+
+    ESP_LOGI(TAG, "Performing initial read of ADS1115 conversion register");
+    ads1115_read_register(s_poll_sensors_arg.ads1115_handle,
+                          &s_sensor_data.ads1115_reading);
+    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_reading);
+
+    ESP_LOGI(TAG, "Performing read of ADS1115 config register to verify "
+                  "conversion");
+    ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config);
+    ads1115_log_register(ESP_LOG_INFO, &read_config);
+
+    const uint32_t c_poll_sensors_period_ms = 100;
+    ESP_LOGI(TAG, "Creating timer to poll sensors every %u ms",
+             c_poll_sensors_period_ms);
     esp_timer_create_args_t poll_sensors_timer_args = {
         .callback              = poll_sensors,
         .arg                   = &s_poll_sensors_arg,
@@ -571,7 +597,11 @@ void app_main(void)
     esp_timer_handle_t poll_sensors_timer;
     ESP_ERROR_CHECK(
         esp_timer_create(&poll_sensors_timer_args, &poll_sensors_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(poll_sensors_timer, 100000));
+
+    ESP_LOGI(TAG, "Starting timer to poll sensors every %u ms",
+             c_poll_sensors_period_ms);
+    ESP_ERROR_CHECK(esp_timer_start_periodic(
+        poll_sensors_timer, c_poll_sensors_period_ms * 1000ULL));
 
     ESP_LOGI(TAG, "Install SH1106 panel I/O I2C: (%dx%d)", EXAMPLE_SH1106_H_RES,
              EXAMPLE_SH1106_V_RES);
