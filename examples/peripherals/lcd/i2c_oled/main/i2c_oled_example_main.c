@@ -73,6 +73,8 @@ static const uint32_t EXAMPLE_LVGL_TASK_STACK_SIZE   = (4 * 1024);
 static const uint32_t EXAMPLE_LVGL_TASK_PRIORITY     = 2;
 static const uint32_t EXAMPLE_LVGL_TASK_MAX_DELAY_MS = 500;
 
+static const uint32_t sc_poll_sensors_period_ms = 500;
+
 /**
  * 1/Hz = s, so 1000/Hz = ms
  * i.e., if the tick source is called every 1 ms, then the frequency is 1000
@@ -565,34 +567,49 @@ void app_main(void)
     ESP_ERROR_CHECK(ads1115_bus_add_device(i2c_bus, ADS1115_SENSOR_ADDR,
                                            &s_poll_sensors_arg.ads1115_handle));
 
-    ESP_LOGI(TAG, "Configuring ADS1115 - writing config register to start "
-                  "single conversion mode");
-    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_config);
-    ESP_ERROR_CHECK(ads1115_write_register(s_poll_sensors_arg.ads1115_handle,
-                                           &s_sensor_data.ads1115_config));
-
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    ESP_LOGI(TAG, "Reading back ADS1115 config register after writing config");
+#if 0
+    ESP_LOGI(TAG, "ADS1115 reading default config register");
     ads1115_register_t read_config = {.address.P      = ADS1115_REG_CONFIG,
                                       .reg.config.raw = 0};
     ESP_ERROR_CHECK(
         ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config));
     ads1115_log_register(ESP_LOG_INFO, &read_config);
+#endif
 
-    ESP_LOGI(TAG, "Performing initial read of ADS1115 conversion register");
-    ads1115_read_register(s_poll_sensors_arg.ads1115_handle,
-                          &s_sensor_data.ads1115_reading);
-    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_reading);
+    ESP_LOGI(TAG, "Configuring ADS1115 - writing config register");
+    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_config);
+    ESP_ERROR_CHECK(ads1115_write_register(s_poll_sensors_arg.ads1115_handle,
+                                           &s_sensor_data.ads1115_config));
 
-    ESP_LOGI(TAG, "Performing read of ADS1115 config register to verify "
-                  "conversion");
-    ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config);
+#if 0
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    ESP_LOGI(TAG, "Reading back ADS1115 config register after writing config");
+    read_config.address.P      = ADS1115_REG_CONFIG;
+    read_config.reg.config.raw = 0;
+    ESP_ERROR_CHECK(
+        ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config));
     ads1115_log_register(ESP_LOG_INFO, &read_config);
+    assert(read_config.reg.config.MODE ==
+           s_sensor_data.ads1115_config.reg.config.MODE);
+    assert(read_config.reg.config.MUX ==
+           s_sensor_data.ads1115_config.reg.config.MUX);
+    assert(read_config.reg.config.PGA ==
+           s_sensor_data.ads1115_config.reg.config.PGA);
+    assert(read_config.reg.config.DR ==
+           s_sensor_data.ads1115_config.reg.config.DR);
+    assert(read_config.reg.config.COMP_MODE ==
+           s_sensor_data.ads1115_config.reg.config.COMP_MODE);
+    assert(read_config.reg.config.COMP_POL ==
+           s_sensor_data.ads1115_config.reg.config.COMP_POL);
+    assert(read_config.reg.config.COMP_LAT ==
+           s_sensor_data.ads1115_config.reg.config.COMP_LAT);
+    assert(read_config.reg.config.COMP_QUE ==
+           s_sensor_data.ads1115_config.reg.config.COMP_QUE);
+#endif
 
-    const uint32_t c_poll_sensors_period_ms = 100;
     ESP_LOGI(TAG, "Creating timer to poll sensors every %u ms",
-             c_poll_sensors_period_ms);
+             sc_poll_sensors_period_ms);
     esp_timer_create_args_t poll_sensors_timer_args = {
         .callback              = poll_sensors,
         .arg                   = &s_poll_sensors_arg,
@@ -604,9 +621,9 @@ void app_main(void)
         esp_timer_create(&poll_sensors_timer_args, &poll_sensors_timer));
 
     ESP_LOGI(TAG, "Starting timer to poll sensors every %u ms",
-             c_poll_sensors_period_ms);
+             sc_poll_sensors_period_ms);
     ESP_ERROR_CHECK(esp_timer_start_periodic(
-        poll_sensors_timer, c_poll_sensors_period_ms * 1000ULL));
+        poll_sensors_timer, sc_poll_sensors_period_ms * 1000ULL));
 
     ESP_LOGI(TAG, "Install SH1106 panel I/O I2C: (%dx%d)", EXAMPLE_SH1106_H_RES,
              EXAMPLE_SH1106_V_RES);
