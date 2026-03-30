@@ -35,6 +35,7 @@
 #include "misc/lv_timer.h"
 #include "sht41.h"
 #include "widgets/scale/lv_scale.h"
+#include <assert.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -380,7 +381,7 @@ static struct
                         .MUX  = ads1115_config_MUX_AIN0_AIN3,
                         .PGA  = ads1115_config_PGA_4_096V,
                         .MODE = ads1115_config_MODE_SINGLE_SHOT,
-                        .DR   = ads1115_config_DR_128SPS,
+                        .DR   = ads1115_config_DR_DEFAULT,
                         .COMP_MODE = ads1115_config_COMP_MODE_DEFAULT,
                         .COMP_POL  = ads1115_config_COMP_POL_DEFAULT,
                         .COMP_LAT  = ads1115_config_COMP_LAT_DEFAULT,
@@ -416,10 +417,13 @@ static void poll_sensors(void *arg)
         sht41_get_reading(poll_arg->sht41_handle, CMD_READ_LOW_PRECISION,
                           &s_sensor_data.temp_humid_data[data_index], 1000));
 
-    s_sensor_data.ads1115_reading.reg.raw   = 0;
     s_sensor_data.ads1115_reading.address.P = ADS1115_REG_CONVERSION;
+    s_sensor_data.ads1115_reading.reg.raw   = 0;
     ESP_ERROR_CHECK(ads1115_read_register(poll_arg->ads1115_handle,
                                           &s_sensor_data.ads1115_reading));
+    assert(s_sensor_data.ads1115_reading.address.P == ADS1115_REG_CONVERSION);
+    assert(s_sensor_data.ads1115_reading.reg.raw != 0);
+
     ads1115_log_register(ESP_LOG_DEBUG, &s_sensor_data.ads1115_reading);
 
     s_sensor_data.voltage_data[data_index] =
@@ -428,6 +432,10 @@ static void poll_sensors(void *arg)
         VOLTAGE_SCALE;
 
     atomic_store(&s_sensor_data.index, data_index);
+
+    // Re-assert the config to start the next conversion
+    ESP_ERROR_CHECK(ads1115_write_register(poll_arg->ads1115_handle,
+                                           &s_sensor_data.ads1115_config));
 
     sht41_print_data(&s_sensor_data.temp_humid_data[data_index]);
 }
