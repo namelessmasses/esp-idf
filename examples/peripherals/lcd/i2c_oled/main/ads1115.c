@@ -435,8 +435,8 @@ float ads1115_get_voltage(ads1115_config_pga_t                       pga,
         return NAN;
     }
 
-    float val = FS * (int16_t)conversion->conversion_result / ((1 << 15) - 1);
-    ESP_LOGD(TAG, "%f * %d / ((1<<15) - 1) = %f", FS,
+    float val = FS * (int16_t)conversion->conversion_result / (1 << 15);
+    ESP_LOGD(TAG, "%f * %d / (1<<15) = %f", FS,
              (int16_t)conversion->conversion_result, val);
     return val;
 }
