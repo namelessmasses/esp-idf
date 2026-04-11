@@ -20,6 +20,7 @@ BinPackArguments: false
 BinPackParameters: false
 PackConstructorInitializers: Never
 BreakBeforeBraces: Attach
+BreakConstructorInitializers: BeforeComma
 IndentCaseLabels: false
 KeepEmptyLinesAtTheStartOfBlocks: true
 MaxEmptyLinesToKeep: 1
