@@ -118,14 +118,25 @@ extern "C" void app_main(void) {
     }
 
     ESP_LOGI(TAG, "Adding ADS1115 to the I2C bus");
-    s_poll_sensors_arg.p_ADS1115 =
-        std::make_unique<kiwi::i2c::ADS1115>(s_poll_sensors_arg.i2c_bus);
+    try {
+        s_poll_sensors_arg.p_ADS1115 =
+            std::make_unique<kiwi::i2c::ADS1115>(s_poll_sensors_arg.i2c_bus);
 
-    s_poll_sensors_arg.p_ADS1115->SetVoltageDivider(R1, R2);
+        s_poll_sensors_arg.p_ADS1115->SetPGA(
+            kiwi::i2c::ADS1115::PGA::FS_4_096V);
 
-    ESP_LOGI(TAG, "Adding SHT41 to the I2C bus");
-    s_poll_sensors_arg.p_SHT41 =
-        std::make_unique<kiwi::i2c::SHT41>(s_poll_sensors_arg.i2c_bus);
+        s_poll_sensors_arg.p_ADS1115->SetVoltageDivider(R1, R2);
+
+        ESP_LOGI(TAG, "Adding SHT41 to the I2C bus");
+        s_poll_sensors_arg.p_SHT41 =
+            std::make_unique<kiwi::i2c::SHT41>(s_poll_sensors_arg.i2c_bus);
+    } catch (const std::exception &e) {
+        ESP_LOGE(TAG, "Exception while initializing sensors: %s", e.what());
+        return;
+    } catch (...) {
+        ESP_LOGE(TAG, "Unknown exception while initializing sensors");
+        return;
+    }
 
     ESP_LOGI(TAG,
              "Creating timer to poll sensors every %u ms",
