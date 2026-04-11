@@ -146,7 +146,8 @@ extern "C" void app_main(void) {
         .arg                   = &s_poll_sensors_arg,
         .dispatch_method       = ESP_TIMER_TASK,
         .name                  = "poll_sensors_timer",
-        .skip_unhandled_events = true};
+        .skip_unhandled_events = true
+    };
     esp_timer_handle_t poll_sensors_timer;
     ESP_ERROR_CHECK(
         esp_timer_create(&poll_sensors_timer_args, &poll_sensors_timer));
