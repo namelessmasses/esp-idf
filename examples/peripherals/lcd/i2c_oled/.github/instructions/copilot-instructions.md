@@ -1,6 +1,14 @@
 # AI Agent Instructions
 
-## Code Formatting
+## Responses
+
+- Keep responses concise for an expert audience: avoid unnecessary
+  explanation and focus on actionable guidance.
+- Research the codebase and relevant external best practices before
+  proposing changes.
+- Prefer general solutions over one-off fixes.
+
+## Code Formatting & Style
 
 - Use cuddle braces with a blank line after opening braces and before
   closing braces.
@@ -10,19 +18,35 @@
 - Prefer descriptive names, align declarations and assignments when it
   improves readability, replace magic numbers with named constants, and
   keep lines under 80 characters.
+- Use a Hungarian-style notation 
+  - _member_ `m*`
+  - _global_ `g*`
+  - _static_ `s*`
+  - _temporary_ `tmp*`
+  - _size_ `sz*`
+  - _count_ `n*`
+  - _index_ `idx*`
+  - _pointer_ `p*`
+  - _input_ `in*` and _output_ `out*` function formal arguments
+  - _boolean_ `b*` 
+  - _function_ `fn*`
+  - _compile-time constant_ `k*` values
+  - _const_ `c*`
+  - _volatile_ `v*`
+  - _const-volatile_ `cv*` 
 
-## Documentation
+### Comments
+
+- `//` for single-line
+- `/** */` for multi-line comments
+  - Internal lines of multi-line comments should start with `*` and be aligned with the first `*` after the
+    opening `/**`.
+- Do not use end-of-line comments
+  
+### Documentation
 
 - Use Doxygen-compatible Javadoc comments: `/** */`, relevant `@` tags,
   and `@see` references when useful.
-
-## Responses
-
-- Keep responses concise for an expert audience: avoid unnecessary
-  explanation and focus on actionable guidance.
-- Research the codebase and relevant external best practices before
-  proposing changes.
-- Prefer general solutions over one-off fixes.
 
 ## Code Edits
 
