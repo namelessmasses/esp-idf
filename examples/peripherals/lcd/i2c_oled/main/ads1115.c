@@ -12,30 +12,12 @@ static const char *const TAG = "ads1115";
 
 #define I2C_MASTER_FREQ_HZ 400000
 
-static uint8_t endian_swap_8_host_little_endian(uint8_t val)
-{
-    uint8_t ret = (val & 0x1) << 7 | (val & 0x2) << 5 | (val & 0x4) << 3 |
-                  (val & 0x8) << 1 | (val & 0x10) >> 1 | (val & 0x20) >> 3 |
-                  (val & 0x40) >> 5 | (val & 0x80) >> 7;
-    ESP_LOGD(TAG,
-             "endian_swap_8_host_little_endian: input=0x%02x, output=0x%02x",
-             val, ret);
-    return ret;
-}
+#define ADS1115_DRIVER_CONVERTS_ENDIANESS 0
 
+#if ADS1115_DRIVER_CONVERTS_ENDIANESS
 static uint16_t endian_swap_16_host_little_endian(uint16_t val)
 {
-    uint8_t first_byte         = val & 0xFF;
-    uint8_t swapped_first_byte = endian_swap_8_host_little_endian(first_byte);
-    uint8_t second_byte         = (val >> 8) & 0xFF;
-    uint8_t swapped_second_byte = endian_swap_8_host_little_endian(second_byte);
-    
-    ESP_LOGD(TAG, "first byte (before swap) : 0x%02x", first_byte);
-    ESP_LOGD(TAG, "first byte (after swap) : 0x%02x", swapped_first_byte);
-    ESP_LOGD(TAG, "second byte (before swap) : 0x%02x", second_byte);
-    ESP_LOGD(TAG, "second byte (after swap) : 0x%02x", swapped_second_byte);
-
-    uint16_t ret = (uint16_t)swapped_first_byte << 8 | (uint16_t)swapped_second_byte;
+    uint16_t ret = (uint16_t)((val << 8) | (val >> 8));
     ESP_LOGD(TAG,
              "endian_swap_16_host_little_endian: input=0x%04x, output=0x%04x",
              val, ret);
@@ -104,7 +86,8 @@ void ads1115_register_encode_host_little_endian(
         encoded_config.COMP_LAT                  = reg->reg.config.COMP_LAT;
         encoded_config.COMP_QUE                  = reg->reg.config.COMP_QUE;
 
-        reg_out->reg.raw = encoded_config.raw;
+        reg_out->reg.raw =
+            endian_swap_16_host_little_endian(encoded_config.raw);
         break;
     }
 
@@ -129,25 +112,27 @@ void ads1115_register_decode_host_little_endian(
     case ADS1115_REG_CONVERSION:
     case ADS1115_REG_LO_THRESH:
     case ADS1115_REG_HI_THRESH:
-        reg_out->reg.raw = 
+        reg_out->reg.raw = reg->reg.raw;
+#if 0
             endian_swap_16_host_little_endian(
                 reg->reg.conversion.conversion_result);
+#endif
         break;
 
     case ADS1115_REG_CONFIG:
     {
-        encoded_config_register_t *encoded_config =
-            (encoded_config_register_t *)&reg->reg.raw;
+        encoded_config_register_t encoded_config = {
+            .raw = endian_swap_16_host_little_endian(reg->reg.raw)};
         ads1115_config_register_t decoded_config = {0};
-        decoded_config.OS                        = encoded_config->OS;
-        decoded_config.MUX                       = encoded_config->MUX;
-        decoded_config.PGA                       = encoded_config->PGA;
-        decoded_config.MODE                      = encoded_config->MODE;
-        decoded_config.DR                        = encoded_config->DR;
-        decoded_config.COMP_MODE                 = encoded_config->COMP_MODE;
-        decoded_config.COMP_POL                  = encoded_config->COMP_POL;
-        decoded_config.COMP_LAT                  = encoded_config->COMP_LAT;
-        decoded_config.COMP_QUE                  = encoded_config->COMP_QUE;
+        decoded_config.OS                        = encoded_config.OS;
+        decoded_config.MUX                       = encoded_config.MUX;
+        decoded_config.PGA                       = encoded_config.PGA;
+        decoded_config.MODE                      = encoded_config.MODE;
+        decoded_config.DR                        = encoded_config.DR;
+        decoded_config.COMP_MODE                 = encoded_config.COMP_MODE;
+        decoded_config.COMP_POL                  = encoded_config.COMP_POL;
+        decoded_config.COMP_LAT                  = encoded_config.COMP_LAT;
+        decoded_config.COMP_QUE                  = encoded_config.COMP_QUE;
 
         reg_out->reg.raw = decoded_config.raw;
         break;
@@ -163,6 +148,8 @@ static encode_fn_t ads1115_register_encode =
     &ads1115_register_encode_host_little_endian;
 static decode_fn_t ads1115_register_decode =
     &ads1115_register_decode_host_little_endian;
+
+#endif // ADS1115_DRIVER_CONVERTS_ENDIANESS
 
 void ads1115_log_register(esp_log_level_t                 lvl,
                           ads1115_register_t const *const reg)
@@ -501,8 +488,7 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
     ESP_LOGD(TAG, "Reading register with address pointer 0x%02x",
              reg->address.val);
 
-    ads1115_register_t reg_encoded;
-    ads1115_register_encode(reg, &reg_encoded);
+    ads1115_register_t reg_encoded = *reg;
 
     ESP_LOGD(TAG, "Transmitting address pointer (encoded): 0x%02x",
              reg_encoded.address.val);
@@ -512,11 +498,8 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
         sizeof(ads1115_address_pointer_register_t), (uint8_t *)&reg_encoded.reg,
         sizeof(reg_encoded.reg), 100);
 
-    ESP_LOGD(TAG, "Reecived (encoded): 0x%04x", reg_encoded.reg.raw);
-
-    ads1115_register_decode(&reg_encoded, reg);
-
-    ESP_LOGD(TAG, "Received (decoded): 0x%04x", reg->reg.raw);
+    ESP_LOGI(TAG, "Reecived : 0x%04x", reg_encoded.reg.raw);
+    *reg = reg_encoded;
 
     if (ret != ESP_OK)
     {
@@ -538,10 +521,12 @@ esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
 
     // ESP32 is little endian, but ADS1115 expects big endian. Convert the raw
     // value to big endian before transmission.
-    ads1115_register_t reg_be;
+    ads1115_register_t reg_be = *reg;
+#if ADS1115_DRIVER_CONVERTS_ENDIANESS
     ads1115_register_encode(reg, &reg_be);
 
     ESP_LOGD(TAG, "Writing register (host): 0x%04x", reg->reg.raw);
+#endif // ADS1115_DRIVER_CONVERTS_ENDIANESS
     ESP_LOGD(TAG, "Writing register (encoded): 0x%04x", reg_be.reg.raw);
 
     esp_err_t ret =

@@ -33,6 +33,7 @@
 #include "misc/lv_style_gen.h"
 #include "misc/lv_text.h"
 #include "misc/lv_timer.h"
+#include "portmacro.h"
 #include "sht41.h"
 #include "widgets/scale/lv_scale.h"
 #include <assert.h>
@@ -370,6 +371,7 @@ static void example_lvgl_event_loop(void *no_args)
 static struct
 {
     ads1115_register_t  ads1115_config;
+    TickType_t          busy_wait_delay;
     ads1115_register_t  ads1115_reading;
     float               voltage_data[2];
     sht41_data_t        temp_humid_data[2];
@@ -377,15 +379,16 @@ static struct
 } s_sensor_data = {
     .ads1115_config =
         {.address.P  = ADS1115_REG_CONFIG,
-         .reg.config = {.OS   = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION,
-                        .MUX  = ads1115_config_MUX_AIN0_AIN3,
-                        .PGA  = ads1115_config_PGA_4_096V,
-                        .MODE = ads1115_config_MODE_SINGLE_SHOT,
-                        .DR   = ads1115_config_DR_DEFAULT,
+         .reg.config = {.OS        = ads1115_config_OS_WRITE_NO_EFFECT,
+                        .MUX       = ads1115_config_MUX_AIN0_GND,
+                        .PGA       = ads1115_config_PGA_4_096V,
+                        .MODE      = ads1115_config_MODE_SINGLE_SHOT,
+                        .DR        = ads1115_config_DR_8SPS,
                         .COMP_MODE = ads1115_config_COMP_MODE_DEFAULT,
                         .COMP_POL  = ads1115_config_COMP_POL_DEFAULT,
                         .COMP_LAT  = ads1115_config_COMP_LAT_DEFAULT,
                         .COMP_QUE  = ads1115_config_COMP_QUE_DEFAULT}},
+    .busy_wait_delay = pdMS_TO_TICKS(100),
     .ads1115_reading = {.address.P      = ADS1115_REG_CONVERSION,
                         .reg.conversion = {0}},
     .voltage_data    = {0.f},
@@ -398,8 +401,8 @@ typedef struct
     i2c_master_dev_handle_t ads1115_handle;
 } poll_sensors_arg_t;
 
-static float const R1            = 0.f;  // 983.f;
-static float const R2            = 1.0f; // 323.f;
+static float const R1            = 983.f;
+static float const R2            = 323.f;
 static float const VOLTAGE_SCALE = (R1 + R2) / R2;
 
 static poll_sensors_arg_t s_poll_sensors_arg = {.sht41_handle   = 0,
@@ -417,6 +420,23 @@ static void poll_sensors(void *arg)
         sht41_get_reading(poll_arg->sht41_handle, CMD_READ_LOW_PRECISION,
                           &s_sensor_data.temp_humid_data[data_index], 1000));
 
+    s_sensor_data.ads1115_config.reg.config.OS =
+        ads1115_config_OS_WRITE_START_SINGLE_CONVERSION;
+
+    ESP_ERROR_CHECK(ads1115_write_register(poll_arg->ads1115_handle,
+                                           &s_sensor_data.ads1115_config));
+
+    bool isBusy = true;
+    while (isBusy)
+    {
+        vTaskDelay(s_sensor_data.busy_wait_delay);
+        ESP_ERROR_CHECK(ads1115_read_register(poll_arg->ads1115_handle,
+                                              &s_sensor_data.ads1115_config));
+        isBusy = (s_sensor_data.ads1115_config.reg.config.OS ==
+                  ads1115_config_OS_READ_CONVERSION_IN_PROGRESS);
+    }
+
+    ESP_LOGI(TAG, "ADS1115 conversion complete, reading result...");
     s_sensor_data.ads1115_reading.address.P = ADS1115_REG_CONVERSION;
     s_sensor_data.ads1115_reading.reg.raw   = 0;
     ESP_ERROR_CHECK(ads1115_read_register(poll_arg->ads1115_handle,
@@ -424,7 +444,7 @@ static void poll_sensors(void *arg)
     assert(s_sensor_data.ads1115_reading.address.P == ADS1115_REG_CONVERSION);
     assert(s_sensor_data.ads1115_reading.reg.raw != 0);
 
-    ads1115_log_register(ESP_LOG_DEBUG, &s_sensor_data.ads1115_reading);
+    ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_reading);
 
     s_sensor_data.voltage_data[data_index] =
         ads1115_get_voltage(s_sensor_data.ads1115_config.reg.config.PGA,
@@ -437,7 +457,9 @@ static void poll_sensors(void *arg)
     ESP_ERROR_CHECK(ads1115_write_register(poll_arg->ads1115_handle,
                                            &s_sensor_data.ads1115_config));
 
+#if 0
     sht41_print_data(&s_sensor_data.temp_humid_data[data_index]);
+#endif
 }
 
 static struct
@@ -583,6 +605,55 @@ void app_main(void)
         ads1115_read_register(s_poll_sensors_arg.ads1115_handle, &read_config));
     ads1115_log_register(ESP_LOG_INFO, &read_config);
 #endif
+
+    // Calculate the busy wait delay based on the data rate (DR) setting in the
+    // config register. The conversion time can be calculated as 1 / DR, and we
+    // add some margin to ensure the conversion is complete before we attempt to
+    // read the result.
+    float data_rate_hz = 0.f;
+    switch (s_sensor_data.ads1115_config.reg.config.DR)
+    {
+    case ads1115_config_DR_8SPS:
+        data_rate_hz = 8.f;
+        break;
+    case ads1115_config_DR_16SPS:
+        data_rate_hz = 16.f;
+        break;
+    case ads1115_config_DR_32SPS:
+        data_rate_hz = 32.f;
+        break;
+    case ads1115_config_DR_64SPS:
+        data_rate_hz = 64.f;
+        break;
+    case ads1115_config_DR_128SPS:
+        data_rate_hz = 128.f;
+        break;
+    case ads1115_config_DR_250SPS:
+        data_rate_hz = 250.f;
+        break;
+    case ads1115_config_DR_475SPS:
+        data_rate_hz = 475.f;
+        break;
+    case ads1115_config_DR_860SPS:
+        data_rate_hz = 860.f;
+        break;
+    default:
+        ESP_LOGW(TAG, "Unknown data rate setting in ADS1115 config: DR=%u",
+                 s_sensor_data.ads1115_config.reg.config.DR);
+        data_rate_hz = 128.f; // default to 128 SPS if unknown
+    }
+
+    float conversion_time_s = 1.f / data_rate_hz;
+    // Add 50% margin to the conversion time to ensure the conversion is
+    // complete before reading
+    conversion_time_s *= 1.5f;
+    s_sensor_data.busy_wait_delay =
+        pdMS_TO_TICKS((uint32_t)(conversion_time_s * 1000.f));
+    ESP_LOGI(TAG,
+             "Calculated busy wait delay based on data rate: %.2f SPS -> "
+             "conversion time %.2f s -> busy wait delay %u ms",
+             data_rate_hz, conversion_time_s,
+             pdTICKS_TO_MS(s_sensor_data.busy_wait_delay));
 
     ESP_LOGI(TAG, "Configuring ADS1115 - writing config register");
     ads1115_log_register(ESP_LOG_INFO, &s_sensor_data.ads1115_config);
