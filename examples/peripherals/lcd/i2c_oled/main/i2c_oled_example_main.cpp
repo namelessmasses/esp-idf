@@ -166,5 +166,8 @@ extern "C" void app_main(void) {
 
     ui_run(bus_handle);
 
-    ESP_LOGI(TAG, "Ending app_main");
+    ESP_LOGI(TAG, "Sleeping indefinitely");
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(600000));
+    }
 }
