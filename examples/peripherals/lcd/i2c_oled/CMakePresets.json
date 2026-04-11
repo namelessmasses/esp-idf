@@ -1,0 +1,37 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "esp-idf-esp32-debug",
+            "displayName": "ESP-IDF ESP32 Debug",
+            "description": "Configure the i2c_oled example with the local ESP-IDF toolchain for use from standard CMake clients.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-cmake-tools/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+                "CMAKE_MAKE_PROGRAM": "C:/Espressif/tools/ninja/1.12.1/ninja.exe",
+                "IDF_TARGET": "esp32",
+                "PYTHON": "C:/Espressif/tools/python/v5.5.3/venv/Scripts/python.exe"
+            },
+            "environment": {
+                "IDF_PATH": "C:/esp/v5.5.3/esp-idf",
+                "IDF_PYTHON_ENV_PATH": "C:/Espressif/tools/python/v5.5.3/venv",
+                "ESP_ROM_ELF_DIR": "C:/Espressif/tools/esp-rom-elfs/20241011",
+                "PATH": "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20251107/xtensa-esp-elf/bin;C:/Espressif/tools/ninja/1.12.1;$penv{PATH}"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "esp-idf-esp32-debug",
+            "displayName": "ESP-IDF ESP32 Debug",
+            "configurePreset": "esp-idf-esp32-debug"
+        }
+    ]
+}
