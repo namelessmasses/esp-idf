@@ -159,8 +159,12 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(esp_timer_start_periodic(
         poll_sensors_timer, sc_poll_sensors_period_ms * 1000ULL));
 
-    ui_run(*reinterpret_cast<i2c_master_bus_handle_t *>(
-        s_poll_sensors_arg.i2c_bus->GetBusHandle()));
+    void *v_bus_handle = s_poll_sensors_arg.i2c_bus->GetBusHandle();
+
+    i2c_master_bus_handle_t bus_handle =
+        *reinterpret_cast<i2c_master_bus_handle_t *>(&v_bus_handle);
+
+    ui_run(bus_handle);
 
     ESP_LOGI(TAG, "Ending app_main");
 }
