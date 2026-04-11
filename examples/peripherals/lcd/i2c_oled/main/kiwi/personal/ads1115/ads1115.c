@@ -1,8 +1,11 @@
+#include "freertos/FreeRTOS.h"
+
 #include "ads1115.h"
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "esp_log_level.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 #include <esp_err.h>
 #include <math.h>
@@ -110,13 +113,13 @@ void ads1115_register_decode_host_little_endian(
     switch (decoded_address.P)
     {
     case ADS1115_REG_CONVERSION:
+        reg_out->reg.raw = endian_swap_16_host_little_endian(
+            reg->reg.conversion.conversion_result);
+        break;
     case ADS1115_REG_LO_THRESH:
     case ADS1115_REG_HI_THRESH:
-        reg_out->reg.raw = reg->reg.raw;
-#if 0
-            endian_swap_16_host_little_endian(
-                reg->reg.conversion.conversion_result);
-#endif
+        reg_out->reg.raw = endian_swap_16_host_little_endian(
+            reg->reg.conversion.conversion_result);
         break;
 
     case ADS1115_REG_CONFIG:
@@ -172,7 +175,8 @@ void ads1115_log_register(esp_log_level_t                 lvl,
     case ADS1115_REG_CONVERSION:
     {
         ESP_LOGD(TAG, "reg_id............... : ADS1115_REG_CONVERSION");
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  convesion_result... : 0x%02x",
+        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  convesion_result... : 0x%04x (%d)",
+                            (uint16_t)reg->reg.conversion.conversion_result,
                             reg->reg.conversion.conversion_result);
         break;
     }
@@ -422,9 +426,9 @@ float ads1115_get_voltage(ads1115_config_pga_t                       pga,
         return NAN;
     }
 
-    float val = FS * (int16_t)conversion->conversion_result / (1 << 15);
-    ESP_LOGD(TAG, "%f * %d / (1<<15) = %f", FS,
-             (int16_t)conversion->conversion_result, val);
+    float val = FS * conversion->conversion_result / (1 << 15);
+    ESP_LOGD(TAG, "%f * %d / (1<<15) = %f", FS, conversion->conversion_result,
+             val);
     return val;
 }
 
@@ -445,33 +449,6 @@ esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
                  esp_err_to_name(ret));
         return ret;
     }
-
-#if 0
-    // Send a reset command to the ADS1115 as i2c cmd 0x06 (General Call Reset)
-    // to ensure it's in a known state.
-    ESP_LOGD(TAG, "Sending reset command (0x06) to ADS1115 to ensure it's in a "
-                  "known state");
-    uint8_t reset_cmd = 0x06;
-    ret               = i2c_master_transmit(*ads1115_dev_handle, &reset_cmd,
-                                            sizeof(reset_cmd), 100);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to send reset command to ADS1115: %s",
-                 esp_err_to_name(ret));
-        return ret;
-    }
-
-    // ADS1115
-
-    ESP_LOGD(TAG,
-             "Reading ADS1115 config register to verify communication with "
-             "the sensor");
-    ads1115_register_t read_config = {.address.P = ADS1115_REG_CONFIG};
-    read_config.reg.raw =
-        0xbeef; // set to a known invalid value to ensure the read is working
-    ESP_ERROR_CHECK(ads1115_read_register(*ads1115_dev_handle, &read_config));
-    ads1115_log_register(ESP_LOG_DEBUG, &read_config);
-#endif
 
     return ESP_OK;
 }

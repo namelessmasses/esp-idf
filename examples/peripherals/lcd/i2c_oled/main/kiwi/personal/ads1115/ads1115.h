@@ -33,7 +33,7 @@ typedef struct
 
 typedef struct
 {
-    uint16_t conversion_result;
+    int16_t conversion_result;
 } ads1115_conversion_register_t;
 
 typedef enum
