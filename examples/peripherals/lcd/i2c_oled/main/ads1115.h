@@ -24,8 +24,8 @@ typedef struct
     {
         struct
         {
-            uint8_t RESERVED : 6;
             uint8_t P : 2;
+            uint8_t RESERVED : 6;
         };
         uint8_t val;
     };
@@ -124,15 +124,16 @@ typedef union
 {
     struct
     {
-        uint16_t OS : 1;
-        uint16_t MUX : 3;
-        uint16_t PGA : 3;
-        uint16_t MODE : 1;
         uint16_t DR : 3;
         uint16_t COMP_MODE : 1;
         uint16_t COMP_POL : 1;
         uint16_t COMP_LAT : 1;
         uint16_t COMP_QUE : 2;
+
+        uint16_t OS : 1;
+        uint16_t MUX : 3;
+        uint16_t PGA : 3;
+        uint16_t MODE : 1;
     };
     uint16_t raw;
 } ads1115_config_register_t;
