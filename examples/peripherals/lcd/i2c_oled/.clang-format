@@ -18,6 +18,7 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 BinPackArguments: false
 BinPackParameters: false
+PackConstructorInitializers: Never
 BreakBeforeBraces: Attach
 IndentCaseLabels: false
 KeepEmptyLinesAtTheStartOfBlocks: true
