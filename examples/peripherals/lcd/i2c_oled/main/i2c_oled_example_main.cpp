@@ -65,7 +65,7 @@ static void poll_sensors(void *arg) {
 
     int32_t data_index = s_sensor_data.index.load();
     ++data_index;
-    data_index &= 1; // toggle between 0 and 1
+    data_index = data_index & 1; // toggle between 0 and 1
 
     kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
     if (std::isnan(reading.relative_humidity)) {
