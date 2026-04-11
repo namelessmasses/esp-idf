@@ -6,9 +6,9 @@
 #include "esp_log.h"
 #include "esp_log_level.h"
 #include "freertos/task.h"
-#include "sdkconfig.h"
 #include <esp_err.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 static const char *const TAG = "ads1115";
@@ -154,12 +154,13 @@ static decode_fn_t ads1115_register_decode =
 
 #endif // ADS1115_DRIVER_CONVERTS_ENDIANESS
 
+float ads1115_gain_values[ads1115_config_PGA_SIZE] = {
+    6.144f, 4.096f, 2.048f, 1.024f, 0.512f, 0.256f};
+
 void ads1115_log_register(esp_log_level_t                 lvl,
-                          ads1115_register_t const *const reg)
-{
+                          ads1115_register_t const *const reg) {
     ESP_LOG_LEVEL_LOCAL(lvl, TAG, "Register dump %p:", reg);
-    if (reg == NULL)
-    {
+    if (reg == NULL) {
         ESP_LOG_LEVEL_LOCAL(lvl, TAG, "<NULL register pointer>");
         return;
     }
@@ -167,33 +168,32 @@ void ads1115_log_register(esp_log_level_t                 lvl,
     ESP_LOG_LEVEL_LOCAL(lvl, TAG, "address.val = 0x%02x", reg->address.val);
     ESP_LOG_LEVEL_LOCAL(lvl, TAG, "address.P = %02x", reg->address.P);
     ESP_LOG_LEVEL_LOCAL(lvl, TAG, "raw value = 0x%04x", reg->reg.raw);
-    ESP_LOG_LEVEL_LOCAL(lvl, TAG, "raw(MSB) : 0x%02x",
-                        (reg->reg.raw >> 8) & 0xFF);
+    ESP_LOG_LEVEL_LOCAL(
+        lvl, TAG, "raw(MSB) : 0x%02x", (reg->reg.raw >> 8) & 0xFF);
     ESP_LOG_LEVEL_LOCAL(lvl, TAG, "raw(LSB) : 0x%02x", reg->reg.raw & 0xFF);
-    switch (reg->address.P)
-    {
-    case ADS1115_REG_CONVERSION:
-    {
+    switch (reg->address.P) {
+    case ADS1115_REG_CONVERSION: {
         ESP_LOGD(TAG, "reg_id............... : ADS1115_REG_CONVERSION");
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  convesion_result... : 0x%04x (%d)",
+        ESP_LOG_LEVEL_LOCAL(lvl,
+                            TAG,
+                            "  convesion_result... : 0x%04x (%d)",
                             (uint16_t)reg->reg.conversion.conversion_result,
                             reg->reg.conversion.conversion_result);
         break;
     }
 
-    case ADS1115_REG_CONFIG:
-    {
+    case ADS1115_REG_CONFIG: {
         ESP_LOG_LEVEL_LOCAL(lvl, TAG, "reg_id........ : ADS1115_REG_CONFIG");
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  OS.......... : %u",
-                            reg->reg.config.OS);
-        switch (reg->reg.config.OS)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  OS.......... : %u", reg->reg.config.OS);
+        switch (reg->reg.config.OS) {
         case ads1115_config_OS_WRITE_NO_EFFECT:
             ESP_LOG_LEVEL_LOCAL(
                 lvl, TAG, "    WRITE:NO_EFFECT / READ:CONVERSION_IN_PROGRESS");
             break;
         case ads1115_config_OS_WRITE_START_SINGLE_CONVERSION:
-            ESP_LOG_LEVEL_LOCAL(lvl, TAG,
+            ESP_LOG_LEVEL_LOCAL(lvl,
+                                TAG,
                                 "    WRITE:START_SINGLE_CONVERSION / "
                                 "READ:CONVERSION_NOT_IN_PROGRESS");
             break;
@@ -201,10 +201,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  MUX......... : %u",
-                            reg->reg.config.MUX);
-        switch (reg->reg.config.MUX)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  MUX......... : %u", reg->reg.config.MUX);
+        switch (reg->reg.config.MUX) {
         case ads1115_config_MUX_AIN0_AIN1:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    AIN0 - AIN1");
             break;
@@ -233,10 +232,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  PGA......... : %u",
-                            reg->reg.config.PGA);
-        switch (reg->reg.config.PGA)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  PGA......... : %u", reg->reg.config.PGA);
+        switch (reg->reg.config.PGA) {
         case ads1115_config_PGA_6_144V:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    +/- 6.144V");
             break;
@@ -255,20 +253,13 @@ void ads1115_log_register(esp_log_level_t                 lvl,
         case ads1115_config_PGA_0_256V:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    +/- 0.256V");
             break;
-        case ads1115_config_PGA_RESERVED1:
-            ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    +/- 0.256V");
-            break;
-        case ads1115_config_PGA_RESERVED2:
-            ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    +/- 0.256V");
-            break;
         default:
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  MODE........ : %u",
-                            reg->reg.config.MODE);
-        switch (reg->reg.config.MODE)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  MODE........ : %u", reg->reg.config.MODE);
+        switch (reg->reg.config.MODE) {
         case ads1115_config_MODE_CONTINUOUS:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    Continuous conversion mode");
             break;
@@ -279,10 +270,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  DR.......... : %u",
-                            reg->reg.config.DR);
-        switch (reg->reg.config.DR)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  DR.......... : %u", reg->reg.config.DR);
+        switch (reg->reg.config.DR) {
         case ads1115_config_DR_8SPS:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "      8 sps");
             break;
@@ -311,10 +301,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  COMP_MODE... : %u",
-                            reg->reg.config.COMP_MODE);
-        switch (reg->reg.config.COMP_MODE)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  COMP_MODE... : %u", reg->reg.config.COMP_MODE);
+        switch (reg->reg.config.COMP_MODE) {
         case ads1115_config_COMP_MODE_TRADITIONAL:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    Traditional");
             break;
@@ -325,10 +314,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  COMP_POL.... : %u",
-                            reg->reg.config.COMP_POL);
-        switch (reg->reg.config.COMP_POL)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  COMP_POL.... : %u", reg->reg.config.COMP_POL);
+        switch (reg->reg.config.COMP_POL) {
         case ads1115_config_COMP_POL_ACTIVE_LOW:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    Active LOW");
             break;
@@ -339,10 +327,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  COMP_LAT.... : %u",
-                            reg->reg.config.COMP_LAT);
-        switch (reg->reg.config.COMP_LAT)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  COMP_LAT.... : %u", reg->reg.config.COMP_LAT);
+        switch (reg->reg.config.COMP_LAT) {
         case ads1115_config_COMP_LAT_NON_LATCHING:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    Non-Latching");
             break;
@@ -353,10 +340,9 @@ void ads1115_log_register(esp_log_level_t                 lvl,
             ESP_LOGW(TAG, "    <unknown>");
         }
 
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  COMP_QUE.... : %u",
-                            reg->reg.config.COMP_QUE);
-        switch (reg->reg.config.COMP_QUE)
-        {
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  COMP_QUE.... : %u", reg->reg.config.COMP_QUE);
+        switch (reg->reg.config.COMP_QUE) {
         case ads1115_config_COMP_QUE_ASSERT_AFTER_ONE:
             ESP_LOG_LEVEL_LOCAL(lvl, TAG, "    Assert after 1");
             break;
@@ -375,19 +361,17 @@ void ads1115_log_register(esp_log_level_t                 lvl,
         break;
     }
 
-    case ADS1115_REG_LO_THRESH:
-    {
+    case ADS1115_REG_LO_THRESH: {
         ESP_LOG_LEVEL_LOCAL(lvl, TAG, "reg_id.... : ADS1115_REG_LO_THRESH");
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  value... : %hu",
-                            reg->reg.lo_thresh.value);
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  value... : %hu", reg->reg.lo_thresh.value);
         break;
     }
 
-    case ADS1115_REG_HI_THRESH:
-    {
+    case ADS1115_REG_HI_THRESH: {
         ESP_LOG_LEVEL_LOCAL(lvl, TAG, "reg_id.... : ADS1115_REG_HI_THRESH");
-        ESP_LOG_LEVEL_LOCAL(lvl, TAG, "  value... : %hu",
-                            reg->reg.hi_thresh.value);
+        ESP_LOG_LEVEL_LOCAL(
+            lvl, TAG, "  value... : %hu", reg->reg.hi_thresh.value);
         break;
     }
 
@@ -396,12 +380,11 @@ void ads1115_log_register(esp_log_level_t                 lvl,
     }
 }
 
-float ads1115_get_voltage(ads1115_config_pga_t                       pga,
-                          ads1115_conversion_register_t const *const conversion)
-{
+float ads1115_get_voltage(
+    ads1115_config_pga_t                       pga,
+    ads1115_conversion_register_t const *const conversion) {
     float FS = 0.f;
-    switch (pga)
-    {
+    switch (pga) {
     case ads1115_config_PGA_6_144V:
         FS = 6.144f;
         break;
@@ -418,8 +401,6 @@ float ads1115_get_voltage(ads1115_config_pga_t                       pga,
         FS = 0.512f;
         break;
     case ads1115_config_PGA_0_256V:
-    case ads1115_config_PGA_RESERVED1:
-    case ads1115_config_PGA_RESERVED2:
         FS = 0.256f;
         break;
     default:
@@ -427,15 +408,14 @@ float ads1115_get_voltage(ads1115_config_pga_t                       pga,
     }
 
     float val = FS * conversion->conversion_result / (1 << 15);
-    ESP_LOGD(TAG, "%f * %d / (1<<15) = %f", FS, conversion->conversion_result,
-             val);
+    ESP_LOGD(
+        TAG, "%f * %d / (1<<15) = %f", FS, conversion->conversion_result, val);
     return val;
 }
 
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
                                  const uint8_t            ads1115_i2c_addr,
-                                 i2c_master_dev_handle_t *ads1115_dev_handle)
-{
+                                 i2c_master_dev_handle_t *ads1115_dev_handle) {
     i2c_device_config_t ads1115_dev_config = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address  = ads1115_i2c_addr,
@@ -443,9 +423,9 @@ esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
 
     esp_err_t ret =
         i2c_master_bus_add_device(bus, &ads1115_dev_config, ads1115_dev_handle);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Failed to add ADS1115 device to I2C bus: %s",
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "Failed to add ADS1115 device to I2C bus: %s",
                  esp_err_to_name(ret));
         return ret;
     }
@@ -454,16 +434,14 @@ esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
 }
 
 esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
-                                ads1115_register_t     *reg)
-{
-    if (reg == NULL)
-    {
+                                ads1115_register_t     *reg) {
+    if (reg == NULL) {
         ESP_LOGE(TAG, "Cannot read register: NULL pointer provided");
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(TAG, "Reading register with address pointer 0x%02x",
-             reg->address.val);
+    ESP_LOGD(
+        TAG, "Reading register with address pointer 0x%02x", reg->address.val);
 
     ads1115_register_t reg_encoded = *reg;
 
@@ -475,11 +453,15 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
         sizeof(ads1115_address_pointer_register_t), (uint8_t *)&reg_encoded.reg,
         sizeof(reg_encoded.reg), 100);
 
-    ESP_LOGI(TAG, "Reecived : 0x%04x", reg_encoded.reg.raw);
+#if ADS1115_DRIVER_CONVERTS_ENDIANESS
+    ads1115_register_decode(&reg_encoded, reg);
+#else
     *reg = reg_encoded;
+#endif
 
-    if (ret != ESP_OK)
-    {
+    ESP_LOGD(TAG, "Received (decoded): 0x%04x", reg->reg.raw);
+
+    if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read register: %s", esp_err_to_name(ret));
         ads1115_log_register(ESP_LOG_ERROR, reg);
     }
@@ -488,16 +470,12 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
 }
 
 esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
-                                 const ads1115_register_t *reg)
-{
-    if (reg == NULL)
-    {
+                                 const ads1115_register_t *reg) {
+    if (reg == NULL) {
         ESP_LOGE(TAG, "Cannot write register: NULL pointer provided");
         return ESP_ERR_INVALID_ARG;
     }
 
-    // ESP32 is little endian, but ADS1115 expects big endian. Convert the raw
-    // value to big endian before transmission.
     ads1115_register_t reg_be = *reg;
 #if ADS1115_DRIVER_CONVERTS_ENDIANESS
     ads1115_register_encode(reg, &reg_be);
@@ -506,14 +484,80 @@ esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
 #endif // ADS1115_DRIVER_CONVERTS_ENDIANESS
     ESP_LOGD(TAG, "Writing register (encoded): 0x%04x", reg_be.reg.raw);
 
-    esp_err_t ret =
-        i2c_master_transmit(ads1115_dev_handle, (uint8_t const *)&reg_be,
-                            sizeof(ads1115_register_t), 100);
-    if (ret != ESP_OK)
-    {
+    esp_err_t ret = i2c_master_transmit(ads1115_dev_handle,
+                                        (uint8_t const *)&reg_be,
+                                        sizeof(ads1115_register_t),
+                                        100);
+    if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write register: %s", esp_err_to_name(ret));
         ads1115_log_register(ESP_LOG_ERROR, reg);
     }
 
     return ret;
+}
+
+esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
+                                        int16_t                *output) {
+    if (output == NULL) {
+        ESP_LOGE(TAG, "Cannot get single conversion: NULL output pointer");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Read the current config register to preserve settings like PGA, MUX, etc.
+    ads1115_register_t config_reg = {0};
+    config_reg.address.P          = ADS1115_REG_CONFIG;
+    esp_err_t ret = ads1115_read_register(dev_handle, &config_reg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(
+            TAG, "Failed to read config register: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    // Set the OS bit to start a single conversion
+    config_reg.reg.config.OS = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION;
+
+    ret = ads1115_write_register(dev_handle, &config_reg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(
+            TAG, "Failed to start single conversion: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    bool isBusy = true;
+    do {
+        // Wait for conversion to complete
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        ads1115_register_t config_reg_check = {0};
+        config_reg_check.address.P          = ADS1115_REG_CONFIG;
+        ret = ads1115_read_register(dev_handle, &config_reg_check);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG,
+                     "Failed to read config register during conversion: %s",
+                     esp_err_to_name(ret));
+            return ret;
+        }
+
+        isBusy = (config_reg_check.reg.config.OS ==
+                  ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS);
+    } while (isBusy);
+
+    ads1115_register_t conversion_reg = {0};
+    conversion_reg.address.P          = ADS1115_REG_CONVERSION;
+
+    ret = ads1115_read_register(dev_handle, &conversion_reg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(
+            TAG, "Failed to read conversion result: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    *output = conversion_reg.reg.conversion.conversion_result;
+    return ESP_OK;
+}
+
+esp_err_t
+ads1115_enable_conversion_ready_interrupt(i2c_master_dev_handle_t dev_handle,
+                                          const uint8_t ads1115_i2c_addr) {
+    return ESP_ERR_NOT_SUPPORTED;
 }

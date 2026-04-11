@@ -10,20 +10,18 @@
 #define ADS1115_SENSOR_ADDR 0x48 /*!< Address of the ADS1115 sensor */
 #endif
 
-typedef enum
-{
+typedef enum {
     ADS1115_REG_CONVERSION = 0x00,
     ADS1115_REG_CONFIG     = 0x01,
     ADS1115_REG_LO_THRESH  = 0x02,
     ADS1115_REG_HI_THRESH  = 0x03
 } ads1115_register_id_t;
 
-typedef struct
-{
-    union
-    {
-        struct
-        {
+typedef struct {
+    union {
+        /// Datasheet specs the IC as big-endian
+        /// ESP-32 is little endian.
+        struct {
             uint8_t P : 2;
             uint8_t RESERVED : 6;
         };
@@ -31,21 +29,18 @@ typedef struct
     };
 } ads1115_address_pointer_register_t;
 
-typedef struct
-{
+typedef struct {
     int16_t conversion_result;
 } ads1115_conversion_register_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_OS_WRITE_NO_EFFECT                 = 0,
     ads1115_config_OS_WRITE_START_SINGLE_CONVERSION   = 1,
     ads1115_config_OS_READ_CONVERSION_IN_PROGRESS     = 0,
     ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS = 1
 } ads1115_config_os_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_MUX_AIN0_AIN1 = 0,
     ads1115_config_MUX_AIN0_AIN3 = 1,
     ads1115_config_MUX_AIN1_AIN3 = 2,
@@ -57,28 +52,28 @@ typedef enum
     ads1115_config_MUX_DEFAULT   = ads1115_config_MUX_AIN0_AIN1
 } ads1115_config_mux_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_PGA_6_144V    = 0,
     ads1115_config_PGA_4_096V    = 1,
     ads1115_config_PGA_2_048V    = 2,
     ads1115_config_PGA_1_024V    = 3,
     ads1115_config_PGA_0_512V    = 4,
     ads1115_config_PGA_0_256V    = 5,
-    ads1115_config_PGA_RESERVED1 = 6,
-    ads1115_config_PGA_RESERVED2 = 7,
+    ads1115_config_PGA_SIZE      = 6,
+    ads1115_config_PGA_RESERVED1 = 5,
+    ads1115_config_PGA_RESERVED2 = 5,
     ads1115_config_PGA_DEFAULT   = ads1115_config_PGA_2_048V
 } ads1115_config_pga_t;
 
-typedef enum
-{
+extern float ads1115_gain_values[ads1115_config_PGA_SIZE];
+
+typedef enum {
     ads1115_config_MODE_CONTINUOUS  = 0,
     ads1115_config_MODE_SINGLE_SHOT = 1,
     ads1115_config_MODE_DEFAULT     = ads1115_config_MODE_SINGLE_SHOT
 } ads1115_config_mode_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_DR_8SPS    = 0,
     ads1115_config_DR_16SPS   = 1,
     ads1115_config_DR_32SPS   = 2,
@@ -90,29 +85,25 @@ typedef enum
     ads1115_config_DR_DEFAULT = ads1115_config_DR_128SPS
 } ads1115_config_dr_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_COMP_MODE_TRADITIONAL = 0,
     ads1115_config_COMP_MODE_WINDOW      = 1,
     ads1115_config_COMP_MODE_DEFAULT     = ads1115_config_COMP_MODE_TRADITIONAL
 } ads1115_config_comp_mode_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_COMP_POL_ACTIVE_LOW  = 0,
     ads1115_config_COMP_POL_ACTIVE_HIGH = 1,
     ads1115_config_COMP_POL_DEFAULT     = ads1115_config_COMP_POL_ACTIVE_LOW
 } ads1115_config_comp_pol_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_COMP_LAT_NON_LATCHING = 0,
     ads1115_config_COMP_LAT_LATCHING     = 1,
     ads1115_config_COMP_LAT_DEFAULT      = ads1115_config_COMP_LAT_NON_LATCHING
 } ads1115_config_comp_lat_t;
 
-typedef enum
-{
+typedef enum {
     ads1115_config_COMP_QUE_ASSERT_AFTER_ONE  = 0,
     ads1115_config_COMP_QUE_ASSERT_AFTER_TWO  = 1,
     ads1115_config_COMP_QUE_ASSERT_AFTER_FOUR = 2,
@@ -120,41 +111,36 @@ typedef enum
     ads1115_config_COMP_QUE_DEFAULT           = ads1115_config_COMP_QUE_DISABLE
 } ads1115_config_comp_que_t;
 
-typedef union
-{
-    struct
-    {
-        uint16_t DR : 3;
-        uint16_t COMP_MODE : 1;
-        uint16_t COMP_POL : 1;
-        uint16_t COMP_LAT : 1;
+typedef union {
+    /// Datasheet specs the IC as big-endian
+    /// ESP-32 is little endian.
+    struct {
         uint16_t COMP_QUE : 2;
-
-        uint16_t OS : 1;
-        uint16_t MUX : 3;
-        uint16_t PGA : 3;
+        uint16_t COMP_LAT : 1;
+        uint16_t COMP_POL : 1;
+        uint16_t COMP_MODE : 1;
+        uint16_t DR : 3;
         uint16_t MODE : 1;
+        uint16_t PGA : 3;
+        uint16_t MUX : 3;
+        uint16_t OS : 1;
     };
     uint16_t raw;
 } ads1115_config_register_t;
 
-typedef struct
-{
+typedef struct {
     uint16_t value;
 } ads1115_lo_thresh_register_t;
 
-typedef struct
-{
+typedef struct {
     uint16_t value;
 } ads1115_hi_thresh_register_t;
 
 #pragma pack(push, 1)
 
-typedef struct
-{
+typedef struct {
     ads1115_address_pointer_register_t address;
-    union
-    {
+    union {
         ads1115_conversion_register_t conversion;
         ads1115_config_register_t     config;
         ads1115_lo_thresh_register_t  lo_thresh;
@@ -181,6 +167,10 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
 
 esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
                                  const ads1115_register_t *reg);
+
+esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
+                                        int16_t                *output);
+
 /**
  * @brief Enable the conversion ready interrupt for the ADS1115 device.
  *
