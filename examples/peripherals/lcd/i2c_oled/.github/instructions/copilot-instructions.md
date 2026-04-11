@@ -30,6 +30,9 @@
   optimal.
 - Keep edits aligned with the formatting and documentation rules while
   improving readability, maintainability, and performance.
+- Do not use band-aid solutions or local rule bypasses as a substitute for a
+  general fix. Use them only when a root-cause solution is not feasible and
+  the user explicitly approves the exception.
 - Prefer simplification and refactoring to reduce duplication, increase
   modularity, preserve high cohesion and low coupling, and use
   composition over inheritance where appropriate.
