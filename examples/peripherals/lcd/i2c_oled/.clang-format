@@ -1,10 +1,24 @@
+# Naming, descriptive identifiers, and replacing magic numbers with named
+# constants are code review and linting concerns; clang-format cannot enforce
+# them directly.
 BasedOnStyle: LLVM
 UseTab: Never
 IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 80
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveMacros: true
-BreakBeforeBraces: Allman
+AlignAfterOpenBracket: Align
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Attach
+IndentCaseLabels: false
+NamespaceIndentation: None
 IncludeBlocks: Regroup
 IncludeCategories:
   - Regex: '^"lvgl.h"$'
