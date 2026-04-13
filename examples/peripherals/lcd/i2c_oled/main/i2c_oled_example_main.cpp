@@ -95,8 +95,11 @@ static void poll_sensors(void *arg) {
             poll_arg->p_ADS1115->GetVoltage();
 
         ESP_LOGI(TAG,
-                 "Sensor readings updated: voltage=%.2f V",
-                 g_sensor_data.data[data_index].voltage);
+                 "Sensor readings updated: voltage=%.2f V; temperature=%.2f C; temperature=%.2f F; humidity=%.2f %%",
+                 g_sensor_data.data[data_index].voltage,
+                 g_sensor_data.data[data_index].temp_humid.temperature_celcius,
+                 g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
+                 g_sensor_data.data[data_index].temp_humid.relative_humidity);
 
         g_sensor_data.index.store(data_index);
 
