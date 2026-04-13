@@ -539,7 +539,7 @@ esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
         }
 
         isBusy = (config_reg_check.reg.config.OS ==
-                  ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS);
+              ads1115_config_OS_READ_CONVERSION_IN_PROGRESS);
     } while (isBusy);
 
     ads1115_register_t conversion_reg = {0};

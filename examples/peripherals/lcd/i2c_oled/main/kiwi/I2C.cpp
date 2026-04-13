@@ -51,15 +51,17 @@ struct I2C::Impl {
 
     ~Impl() {
         for (const auto &[address, devHandle] : m_DeviceHandleMap) {
-            ESP_LOG_LEVEL_LOCAL(I2C::s_LogLevel,
-                                TAG,
-                                "Removing I2C device with address 0x%02X from bus",
-                                address);
+            ESP_LOG_LEVEL_LOCAL(
+                I2C::s_LogLevel,
+                TAG,
+                "Removing I2C device with address 0x%02X from bus",
+                address);
             ESP_ERROR_CHECK(i2c_master_bus_rm_device(devHandle));
-            ESP_LOG_LEVEL_LOCAL(I2C::s_LogLevel,
-                                TAG,
-                                "I2C device with address 0x%02X removed successfully from bus",
-                                address);
+            ESP_LOG_LEVEL_LOCAL(
+                I2C::s_LogLevel,
+                TAG,
+                "I2C device with address 0x%02X removed successfully from bus",
+                address);
         }
         ESP_LOG_LEVEL_LOCAL(I2C::s_LogLevel,
                             TAG,
@@ -74,7 +76,6 @@ struct I2C::Impl {
 
     i2c_master_bus_config_t m_BusConfig;
     i2c_master_bus_handle_t m_BusHandle;
-    i2c_master_dev_handle_t m_DevHandle;
 
     using device_handle_map_type =
         std::unordered_map<uint8_t, i2c_master_dev_handle_t>;
@@ -126,12 +127,13 @@ esp_err_t I2C::AddBusDevice(uint8_t address) {
                                      .scl_wait_us  = 0,
                                      .flags = {.disable_ack_check = false}};
 
+    i2c_master_dev_handle_t devHandle;
     esp_err_t result = i2c_master_bus_add_device(
-        pImpl->m_BusHandle, &devConfig, &pImpl->m_DevHandle);
+        pImpl->m_BusHandle, &devConfig, &devHandle);
 
     if (result == ESP_OK) {
 
-        pImpl->m_DeviceHandleMap[address] = pImpl->m_DevHandle;
+        pImpl->m_DeviceHandleMap[address] = devHandle;
         ESP_LOG_LEVEL_LOCAL(
             I2C::s_LogLevel,
             TAG,
@@ -162,8 +164,7 @@ I2C::Read(uint8_t address, uint8_t *data, size_t size, uint32_t timeout_ms) {
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t result =
-        i2c_master_receive(pImpl->m_DevHandle, data, size, timeout_ms);
+    esp_err_t result = i2c_master_receive(devHandle, data, size, timeout_ms);
     return result;
 }
 

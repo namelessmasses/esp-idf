@@ -2,6 +2,8 @@
 
 #include "../../II2C.hpp"
 
+#include "sht41_reading.hpp"
+
 #include <cstdint>
 #include <memory>
 
@@ -22,11 +24,7 @@ class SHT41 {
     SHT41(std::shared_ptr<II2C> const &i2c,
           uint8_t                      address = DEFAULT_I2C_ADDRESS);
 
-    struct Reading {
-        float temperature_celcius;
-        float temperature_fahrenheit;
-        float relative_humidity;
-    };
+    using Reading = sht41_sensor_data_t;
 
     Reading GetReading();
 
