@@ -1,5 +1,5 @@
 dependencies:
   lvgl/lvgl: "9.2.0"
-#  esp_lcd_sh1107: "^1"
+  #  esp_lcd_sh1107: "^1"
   tny-robotics/sh1106-esp-idf: "^1"
-  esp-idf-lib/ads111x: "^1"
+  # esp-idf-lib/ads111x: "^1"

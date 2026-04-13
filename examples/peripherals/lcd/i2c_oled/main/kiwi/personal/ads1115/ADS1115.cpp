@@ -14,6 +14,7 @@ extern "C" {
 #include <esp_log.h>
 
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 
@@ -208,17 +209,31 @@ float ADS1115::GetVoltage() {
         .address = {.P = ADS1115_REG_CONFIG, .RESERVED = 0},
         .reg     = {.raw = 0},
     };
-    m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
-                           reinterpret_cast<uint8_t *>(&reg.reg.raw),
-                           sizeof(reg.reg.raw),
-                           ADS1115::k_DEFAULT_TIMEOUT_MS);
+    esp_err_t read_config_err =
+        m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
+                               reinterpret_cast<uint8_t *>(&reg.reg.raw),
+                               sizeof(reg.reg.raw),
+                               ADS1115::k_DEFAULT_TIMEOUT_MS);
+    if (read_config_err != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "Failed to read ADS1115 config register: %s",
+                 esp_err_to_name(read_config_err));
+        return std::numeric_limits<float>::quiet_NaN();
+    }
 
     // Start single conversion by setting the OS bit to 1
     reg.reg.config.OS = 1;
-    m_pImpl->m_pII2C->Write(m_pImpl->m_Address,
-                            reinterpret_cast<const uint8_t *>(&reg),
-                            sizeof(reg),
-                            ADS1115::k_DEFAULT_TIMEOUT_MS);
+    esp_err_t start_conversion_err =
+        m_pImpl->m_pII2C->Write(m_pImpl->m_Address,
+                                reinterpret_cast<const uint8_t *>(&reg),
+                                sizeof(reg),
+                                ADS1115::k_DEFAULT_TIMEOUT_MS);
+    if (start_conversion_err != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "Failed to start ADS1115 conversion: %s",
+                 esp_err_to_name(start_conversion_err));
+        return std::numeric_limits<float>::quiet_NaN();
+    }
 
     // Use the DR (data rate) bits from the config register to determine the
     // appropriate delay
@@ -229,22 +244,47 @@ float ADS1115::GetVoltage() {
     const TickType_t delay_ticks =
         pdMS_TO_TICKS(Impl::GetConversionDelayMs(dr)) + 1;
 
-    bool isBusy = true;
-    while (isBusy) {
+    bool conversion_complete = false;
+    for (uint32_t i = 0; i < 16; ++i) {
         vTaskDelay(delay_ticks);
-        m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
-                               reinterpret_cast<uint8_t *>(&reg.reg.raw),
-                               sizeof(reg.reg.raw),
-                               ADS1115::k_DEFAULT_TIMEOUT_MS);
-        isBusy = (reg.reg.config.OS == 1);
+
+        esp_err_t poll_config_err =
+            m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
+                                   reinterpret_cast<uint8_t *>(&reg.reg.raw),
+                                   sizeof(reg.reg.raw),
+                                   ADS1115::k_DEFAULT_TIMEOUT_MS);
+        if (poll_config_err != ESP_OK) {
+            ESP_LOGE(TAG,
+                     "Failed to poll ADS1115 conversion state: %s",
+                     esp_err_to_name(poll_config_err));
+            return std::numeric_limits<float>::quiet_NaN();
+        }
+
+        conversion_complete =
+            (reg.reg.config.OS == ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS);
+        if (conversion_complete) {
+            break;
+        }
+    }
+
+    if (!conversion_complete) {
+        ESP_LOGE(TAG, "ADS1115 conversion timed out");
+        return std::numeric_limits<float>::quiet_NaN();
     }
 
     reg.address.P        = ADS1115_REG_CONVERSION;
     uint16_t raw_reading = 0;
-    m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
-                           reinterpret_cast<uint8_t *>(&raw_reading),
-                           sizeof(raw_reading),
-                           ADS1115::k_DEFAULT_TIMEOUT_MS);
+    esp_err_t read_conversion_err =
+        m_pImpl->m_pII2C->Read(m_pImpl->m_Address,
+                               reinterpret_cast<uint8_t *>(&raw_reading),
+                               sizeof(raw_reading),
+                               ADS1115::k_DEFAULT_TIMEOUT_MS);
+    if (read_conversion_err != ESP_OK) {
+        ESP_LOGE(TAG,
+                 "Failed to read ADS1115 conversion register: %s",
+                 esp_err_to_name(read_conversion_err));
+        return std::numeric_limits<float>::quiet_NaN();
+    }
 
     float volategScale = Impl::GetVoltageScale(m_pImpl->m_PGA);
     float voltage      = volategScale * raw_reading;
