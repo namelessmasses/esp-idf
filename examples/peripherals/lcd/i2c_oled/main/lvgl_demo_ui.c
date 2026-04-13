@@ -5,10 +5,11 @@
  */
 
 // clang-format off
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <lvgl.h>
 // clang-format on
 
-#include "esp_timer.h"
 #include <core/lv_obj.h>
 #include <core/lv_obj_style.h>
 #include <core/lv_obj_style_gen.h>
@@ -19,6 +20,7 @@
 #include <esp_lcd_panel_sh1106.h>
 #include <esp_lcd_types.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <font/lv_font.h>
 #include <layouts/grid/lv_grid.h>
 #include <layouts/lv_layout.h>
@@ -29,38 +31,43 @@
 #include <misc/lv_style_gen.h>
 #include <misc/lv_text.h>
 #include <misc/lv_timer.h>
+#include <stdatomic.h>
+#include <sys/param.h>
 #include <widgets/scale/lv_scale.h>
 #include <widgets/spinner/lv_spinner.h>
 #include <widgets/table/lv_table.h>
 
-#include <stdatomic.h>
-#include <sys/param.h>
-#include <math.h>
+#include "sensor_data.h"
+#include "watchdog_util.h"
 
 static const char *TAG = "lvgl_ui";
 
 // Within an enum to allow use in compile time arithmetic expressions for array
 // sizing, etc.
 enum {
-    EXAMPLE_SH1106_H_RES         = SH1106_WIDTH,
-    EXAMPLE_SH1106_V_RES         = SH1106_HEIGHT,
-    EXAMPLE_SH1106_ROWS_PER_BYTE = 8,
-    EXAMPLE_LVGL_PIXELS_PER_BYTE = 8,
-    EXAMPLE_LVGL_PALETTE_SIZE    = 8
+    k_TOTE_MONITOR_SH1106_H_RES         = SH1106_WIDTH,
+    k_TOTE_MONITOR_SH1106_V_RES         = SH1106_HEIGHT,
+    k_TOTE_MONITOR_SH1106_ROWS_PER_BYTE = 8,
+    k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE = 8,
+    k_TOTE_MONITOR_LVGL_PALETTE_SIZE    = 8
 };
 
-static const uint32_t EXAMPLE_SH1106_PAGE_HEIGHT = SH1106_PIXELS_PER_BYTE;
+static const uint32_t k_TOTE_MONITOR_SH1106_PAGE_HEIGHT =
+    SH1106_PIXELS_PER_BYTE;
 
-static const uint8_t EXAMPLE_OLED_FRAME_WHITE = 0xFF;
-static const uint8_t EXAMPLE_OLED_FRAME_BLACK = 0x00;
+static const uint8_t k_TOTE_MONITOR_OLED_FRAME_WHITE = 0xFF;
+static const uint8_t k_TOTE_MONITOR_OLED_FRAME_BLACK = 0x00;
 
-static const uint32_t EXAMPLE_BOOT_CHECK_STEP_DELAY_MS = 500;
+static const uint32_t k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS = 500;
 
-static const uint32_t EXAMPLE_LVGL_TASK_STACK_SIZE   = (4 * 1024);
-static const uint32_t EXAMPLE_LVGL_TASK_PRIORITY     = 2;
-static const uint32_t EXAMPLE_LVGL_TASK_MAX_DELAY_MS = 500;
+static const uint32_t   k_TOTE_MONITOR_LVGL_TASK_STACK_SIZE   = (4 * 1024);
+static const uint32_t   k_TOTE_MONITOR_LVGL_TASK_PRIORITY     = 2;
+static const uint32_t   k_TOTE_MONITOR_LVGL_TASK_MAX_DELAY_MS = 500;
+static const BaseType_t k_TOTE_MONITOR_LVGL_TASK_CORE_ID      = 0;
 
-static const uint32_t EXAMPLE_PIN_NUM_RST = -1;
+static const uint32_t k_WATCHDOG_YIELD_TIME_MS = 1;
+
+static const uint32_t k_TOTE_MONITOR_PIN_NUM_RST = -1;
 
 /**
  * 1/Hz = s, so 1000/Hz = ms
@@ -70,16 +77,17 @@ static const uint32_t EXAMPLE_PIN_NUM_RST = -1;
  * 1 / Hz * 1000 = 0 with integer math.
  * 1000 / Hz = round down to the nearest integer millisecond.
  */
-static const uint32_t EXAMPLE_LVGL_TASK_MIN_DELAY_MS =
+static const uint32_t k_TOTE_MONITOR_LVGL_TASK_MIN_DELAY_MS =
     (1000 / CONFIG_FREERTOS_HZ);
 
-static uint8_t
-    s_SH1106_framebuffer[(EXAMPLE_SH1106_V_RES / EXAMPLE_SH1106_ROWS_PER_BYTE) *
-                         EXAMPLE_SH1106_H_RES];
+static uint8_t s_SH1106_framebuffer[(k_TOTE_MONITOR_SH1106_V_RES /
+                                     k_TOTE_MONITOR_SH1106_ROWS_PER_BYTE) *
+                                    k_TOTE_MONITOR_SH1106_H_RES];
 
-static uint8_t s_LVGL_framebuffer[EXAMPLE_SH1106_H_RES * EXAMPLE_SH1106_V_RES /
-                                      EXAMPLE_LVGL_PIXELS_PER_BYTE +
-                                  EXAMPLE_LVGL_PALETTE_SIZE];
+static uint8_t s_LVGL_framebuffer[k_TOTE_MONITOR_SH1106_H_RES *
+                                      k_TOTE_MONITOR_SH1106_V_RES /
+                                      k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE +
+                                  k_TOTE_MONITOR_LVGL_PALETTE_SIZE];
 
 /**
  * @brief Performs a self-test on the OLED display panel
@@ -95,35 +103,36 @@ static uint8_t s_LVGL_framebuffer[EXAMPLE_SH1106_H_RES * EXAMPLE_SH1106_V_RES /
  * @note This function is typically called during initialization or diagnostics
  *       to ensure the display hardware is working properly.
  */
-static void example_oled_self_test(esp_lcd_panel_handle_t panel) {
+static void oled_self_test(esp_lcd_panel_handle_t panel) {
     ESP_LOGI(TAG, "Starting OLED self-test routine...default state");
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 
     ESP_LOGI(TAG, "Boot check 1/3 (panel): full black frame");
     memset(s_SH1106_framebuffer,
-           EXAMPLE_OLED_FRAME_BLACK,
+           k_TOTE_MONITOR_OLED_FRAME_BLACK,
            sizeof(s_SH1106_framebuffer));
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel,
                                               0,
                                               0,
-                                              EXAMPLE_SH1106_H_RES,
-                                              EXAMPLE_SH1106_V_RES,
+                                              k_TOTE_MONITOR_SH1106_H_RES,
+                                              k_TOTE_MONITOR_SH1106_V_RES,
                                               s_SH1106_framebuffer));
 
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 
     ESP_LOGI(TAG, "Boot check 2/3 (panel): full white frame");
     memset(s_SH1106_framebuffer,
-           EXAMPLE_OLED_FRAME_WHITE,
+           k_TOTE_MONITOR_OLED_FRAME_WHITE,
            sizeof(s_SH1106_framebuffer));
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel,
                                               0,
                                               0,
-                                              EXAMPLE_SH1106_H_RES,
-                                              EXAMPLE_SH1106_V_RES,
+                                              k_TOTE_MONITOR_SH1106_H_RES,
+                                              k_TOTE_MONITOR_SH1106_V_RES,
                                               s_SH1106_framebuffer));
 
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 
     ESP_LOGI(TAG, "Boot check 3/3 (panel): checkerboard frame");
     for (size_t i = 0; i < sizeof(s_SH1106_framebuffer); i++) {
@@ -134,29 +143,31 @@ static void example_oled_self_test(esp_lcd_panel_handle_t panel) {
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel,
                                               0,
                                               0,
-                                              EXAMPLE_SH1106_H_RES,
-                                              EXAMPLE_SH1106_V_RES,
+                                              k_TOTE_MONITOR_SH1106_H_RES,
+                                              k_TOTE_MONITOR_SH1106_V_RES,
                                               s_SH1106_framebuffer));
 
-    vTaskDelay(pdMS_TO_TICKS(EXAMPLE_BOOT_CHECK_STEP_DELAY_MS));
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 
     ESP_LOGI(TAG, "Boot check complete (panel): full black frame");
     memset(s_SH1106_framebuffer,
-           EXAMPLE_OLED_FRAME_BLACK,
+           k_TOTE_MONITOR_OLED_FRAME_BLACK,
            sizeof(s_SH1106_framebuffer));
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel,
                                               0,
                                               0,
-                                              EXAMPLE_SH1106_H_RES,
-                                              EXAMPLE_SH1106_V_RES,
+                                              k_TOTE_MONITOR_SH1106_H_RES,
+                                              k_TOTE_MONITOR_SH1106_V_RES,
                                               s_SH1106_framebuffer));
+
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 }
 
 static _lock_t s_lvgl_api_lock;
 
 static atomic_flag s_flush_pending = ATOMIC_FLAG_INIT;
 
-static uint32_t example_lvgl_tick_get_cb(void) {
+static uint32_t tote_monitor_lvgl_tick_get_cb(void) {
     return (uint32_t)(esp_timer_get_time() / 1000ULL);
 }
 
@@ -178,9 +189,9 @@ static uint32_t example_lvgl_tick_get_cb(void) {
  * @return `false` to indicate no higher-priority task wake-up is requested.
  */
 static bool
-example_notify_lvgl_panel_flush_complete(esp_lcd_panel_io_handle_t io_panel,
-                                         esp_lcd_panel_io_event_data_t *edata,
-                                         void *user_ctx) {
+notify_lvgl_panel_flush_complete(esp_lcd_panel_io_handle_t      io_panel,
+                                 esp_lcd_panel_io_event_data_t *edata,
+                                 void                          *user_ctx) {
     if (atomic_flag_test_and_set(&s_flush_pending)) {
         return false;
     }
@@ -192,9 +203,11 @@ example_notify_lvgl_panel_flush_complete(esp_lcd_panel_io_handle_t io_panel,
     return false;
 }
 
-static void example_flush_lvgl_to_panel(lv_display_t    *disp,
-                                        const lv_area_t *area,
-                                        uint8_t         *px_map) {
+static void flush_lvgl_to_panel(lv_display_t    *disp,
+                                const lv_area_t *area,
+                                uint8_t         *px_map) {
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
+
     ESP_LOGD(TAG, "Flushing LVGL buffer to panel: %p", px_map);
 
     esp_lcd_panel_handle_t panel_handle =
@@ -204,7 +217,7 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
     // these are assumed to be used as a palette. Skip the palette here More
     // information about the monochrome, please refer to
     // https://docs.lvgl.io/9.2/porting/display.html#monochrome-displays
-    px_map += EXAMPLE_LVGL_PALETTE_SIZE;
+    px_map += k_TOTE_MONITOR_LVGL_PALETTE_SIZE;
 
     const int32_t x1 = area->x1;
     const int32_t x2 = area->x2;
@@ -218,8 +231,8 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
 
     /// The number of bytes per row in the px_map
     const int32_t px_map_bytes_per_row =
-        (area_w + EXAMPLE_LVGL_PIXELS_PER_BYTE - 1) /
-        EXAMPLE_LVGL_PIXELS_PER_BYTE;
+        (area_w + k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE - 1) /
+        k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE;
 
     ESP_LOGD(TAG, "px_map row bytes: %d", px_map_bytes_per_row);
 
@@ -256,25 +269,27 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
         const uint32_t lvgl_px_map_y_offset = (y - y1) * px_map_bytes_per_row;
 
         // SH1106 page for the current row
-        const uint32_t sh1106_page = y / EXAMPLE_SH1106_PAGE_HEIGHT;
+        const uint32_t sh1106_page = y / k_TOTE_MONITOR_SH1106_PAGE_HEIGHT;
 
         // SH1106 buffer offset for the start of the current page
-        const uint32_t sh1106_page_offset = sh1106_page * EXAMPLE_SH1106_H_RES;
+        const uint32_t sh1106_page_offset =
+            sh1106_page * k_TOTE_MONITOR_SH1106_H_RES;
 
         // SH1106 bit mask for the current row within the page
-        const uint8_t sh1106_row_mask = 1 << (y % EXAMPLE_SH1106_PAGE_HEIGHT);
+        const uint8_t sh1106_row_mask =
+            1 << (y % k_TOTE_MONITOR_SH1106_PAGE_HEIGHT);
 
         for (int32_t x = x1; x <= x2; ++x) {
             // Offset from the beginning of the current row within the LVGL
             // pixel map for the current column
             const uint32_t lvgl_px_map_x_offset =
-                (x - x1) / EXAMPLE_LVGL_PIXELS_PER_BYTE;
+                (x - x1) / k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE;
 
             // Bit mask for the current pixel within the byte in the LVGL pixel
             // map
             const uint8_t lvgl_px_map_pixel_bit_mask =
-                1 << ((EXAMPLE_LVGL_PIXELS_PER_BYTE - 1) -
-                      (x % EXAMPLE_LVGL_PIXELS_PER_BYTE));
+                1 << ((k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE - 1) -
+                      (x % k_TOTE_MONITOR_LVGL_PIXELS_PER_BYTE));
 
             // Byte in the LVGL pixel map containing the current pixel
             // row offset + column offset
@@ -309,12 +324,15 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
              "s_LVGL_framebuffer -> s_SH1106_framebuffer done, flushing "
              "to panel...");
 
-    /// TODO does this assume the entire buffer is updated?
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
+
     // i.e., what is the layout of color_data relative to (x_start, y_start) and
     // (x_end, y_end)? i.e., is color_data the entire frame buffer or just the
     // area to be drawn within the display?
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(
         panel_handle, x1, y1, x2 + 1, y2 + 1, s_SH1106_framebuffer));
+
+    yield_for_watchdog(k_TOTE_MONITOR_BOOT_CHECK_STEP_DELAY_MS);
 
     atomic_flag_clear(&s_flush_pending);
     ESP_LOGD(TAG, "Flush command issued to panel");
@@ -335,30 +353,31 @@ static void example_flush_lvgl_to_panel(lv_display_t    *disp,
  * @note This function runs in an infinite loop and should be created as a
  * FreeRTOS task
  */
-static void example_lvgl_event_loop(void *no_args) {
+static void lvgl_event_loop(void *no_args) {
     (void)no_args;
 
     ESP_LOGI(TAG,
              "Starting LVGL event loop task: max delay %u ms, min delay %u ms",
-             EXAMPLE_LVGL_TASK_MAX_DELAY_MS,
-             EXAMPLE_LVGL_TASK_MIN_DELAY_MS);
+             k_TOTE_MONITOR_LVGL_TASK_MAX_DELAY_MS,
+             k_TOTE_MONITOR_LVGL_TASK_MIN_DELAY_MS);
 
     uint32_t time_till_next_ms = 0;
 
     while (1) {
+
         _lock_acquire(&s_lvgl_api_lock);
         time_till_next_ms = lv_timer_handler();
         _lock_release(&s_lvgl_api_lock);
 
         // in case of triggering a task watchdog time out
         time_till_next_ms =
-            MAX(time_till_next_ms, EXAMPLE_LVGL_TASK_MIN_DELAY_MS);
+            MAX(time_till_next_ms, k_TOTE_MONITOR_LVGL_TASK_MIN_DELAY_MS);
 
         // in case of lvgl display not ready yet
         time_till_next_ms =
-            MIN(time_till_next_ms, EXAMPLE_LVGL_TASK_MAX_DELAY_MS);
+            MIN(time_till_next_ms, k_TOTE_MONITOR_LVGL_TASK_MAX_DELAY_MS);
 
-        vTaskDelay(pdMS_TO_TICKS(time_till_next_ms));
+        yield_for_watchdog(time_till_next_ms);
     }
 }
 
@@ -380,42 +399,27 @@ static struct {
     .power             = NULL,
 };
 
-static struct {
-    struct {
-        float temperature_celcius;
-        float temperature_fahrenheit;
-        float relative_humidity;
-    } temp_humid_data[2];
-    float                     voltage_data[2];
-    atomic_int_fast32_t       index;
-} s_sensor_data = {
-    .temp_humid_data = {{.temperature_celcius = NAN,
-                         .temperature_fahrenheit = NAN,
-                         .relative_humidity = NAN},
-                        {.temperature_celcius = NAN,
-                         .temperature_fahrenheit = NAN,
-                         .relative_humidity = NAN}},
-    .voltage_data = {NAN, NAN},
-    .index        = -1,
-};
-
 static void ui_update(lv_timer_t *timer) {
     (void)timer;
 
-    int32_t data_index = atomic_load(&s_sensor_data.index);
+    int32_t data_index = atomic_load(&g_sensor_data.index);
+    if (data_index < 0) {
+        // No data yet, skip update
+        return;
+    }
 
     char temp_str[16];
     snprintf(temp_str,
              sizeof(temp_str),
              "%.2fC\n%.2fF",
-             s_sensor_data.temp_humid_data[data_index].temperature_celcius,
-             s_sensor_data.temp_humid_data[data_index].temperature_fahrenheit);
+             g_sensor_data.data[data_index].temp_humid.temperature_celcius,
+             g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit);
 
     char rh_str[16];
     snprintf(rh_str,
              sizeof(rh_str),
              "Rel.Hu.\n%.2f%%",
-             s_sensor_data.temp_humid_data[data_index].relative_humidity);
+             g_sensor_data.data[data_index].temp_humid.relative_humidity);
 
     lv_label_set_text(s_ui.temp, temp_str);
     lv_label_set_text(s_ui.rh, rh_str);
@@ -424,7 +428,7 @@ static void ui_update(lv_timer_t *timer) {
     snprintf(voltage_str,
              sizeof(voltage_str),
              "%2.2fV",
-             s_sensor_data.voltage_data[data_index]);
+             g_sensor_data.data[data_index].voltage);
 
     lv_label_set_text(s_ui.voltage, voltage_str);
 }
@@ -432,8 +436,8 @@ static void ui_update(lv_timer_t *timer) {
 void ui_run(i2c_master_bus_handle_t bus_handle) {
     ESP_LOGI(TAG,
              "Install SH1106 panel I/O I2C: (%dx%d)",
-             EXAMPLE_SH1106_H_RES,
-             EXAMPLE_SH1106_V_RES);
+             k_TOTE_MONITOR_SH1106_H_RES,
+             k_TOTE_MONITOR_SH1106_V_RES);
     esp_lcd_panel_io_handle_t     io_handle = NULL;
     esp_lcd_panel_io_i2c_config_t io_config = ESP_SH1106_DEFAULT_IO_CONFIG;
     ESP_ERROR_CHECK(
@@ -442,7 +446,7 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     ESP_LOGI(TAG, "Install SH1106 panel driver");
     esp_lcd_panel_handle_t     panel_handle = NULL;
     esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = (int)EXAMPLE_PIN_NUM_RST,
+        .reset_gpio_num = (int)k_TOTE_MONITOR_PIN_NUM_RST,
         .rgb_ele_order =
             LCD_RGB_ELEMENT_ORDER_RGB, // Not used for monochrome panel, but set
                                        // to a default value to avoid potential
@@ -468,7 +472,7 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
 
     ESP_LOGI(TAG, "Performing OLED self-test");
-    example_oled_self_test(panel_handle);
+    oled_self_test(panel_handle);
 
     ESP_LOGI(TAG, "Clearing LVGL framebuffer %p", s_LVGL_framebuffer);
     memset(s_LVGL_framebuffer, 0, sizeof(s_LVGL_framebuffer));
@@ -476,12 +480,14 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     ESP_LOGI(TAG, "Initializing LVGL library");
     lv_init();
 
+    yield_for_watchdog(k_WATCHDOG_YIELD_TIME_MS);
+
     ESP_LOGI(TAG, "Configuring LVGL tick callback");
-    lv_tick_set_cb(example_lvgl_tick_get_cb);
+    lv_tick_set_cb(tote_monitor_lvgl_tick_get_cb);
 
     ESP_LOGI(TAG, "Creating LVGL display");
-    lv_display_t *display =
-        lv_display_create(EXAMPLE_SH1106_H_RES, EXAMPLE_SH1106_V_RES);
+    lv_display_t *display = lv_display_create(k_TOTE_MONITOR_SH1106_H_RES,
+                                              k_TOTE_MONITOR_SH1106_V_RES);
 
     ESP_LOGI(TAG, "Setting LVGL display user data to the panel handle");
     lv_display_set_user_data(display, panel_handle);
@@ -498,30 +504,19 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
 
     ESP_LOGI(TAG,
              "Register LVGL callback for flushing display buffer to the panel");
-    lv_display_set_flush_cb(display, example_flush_lvgl_to_panel);
+    lv_display_set_flush_cb(display, flush_lvgl_to_panel);
 
     ESP_LOGI(TAG, "Register ESP LCD panel for flush to panel complete");
     const esp_lcd_panel_io_callbacks_t esp_lcd_panel_callbacks = {
-        .on_color_trans_done = example_notify_lvgl_panel_flush_complete,
+        .on_color_trans_done = notify_lvgl_panel_flush_complete,
     };
     esp_lcd_panel_io_register_event_callbacks(
         io_handle, &esp_lcd_panel_callbacks, display);
 
-    // After this point access to the LVGL API must be protected by the
-    // s_lvgl_api_lock mutex, as the LVGL event loop is running in a separate
-    // task and may call back into user code (e.g.,
-    // example_notify_lvgl_panel_flush_complete) that also needs to call LVGL
-    // API functions.
-
-    ESP_LOGI(TAG, "Creating LVGL event loop task");
-    xTaskCreate(example_lvgl_event_loop,
-                "LVGL",
-                EXAMPLE_LVGL_TASK_STACK_SIZE,
-                NULL,
-                EXAMPLE_LVGL_TASK_PRIORITY,
-                NULL);
-
     lv_timer_create(ui_update, 100, NULL);
+
+    yield_for_watchdog(k_WATCHDOG_YIELD_TIME_MS);
+
     lv_style_init(&s_ui.style);
     lv_style_set_bg_color(&s_ui.style, lv_color_black());
     lv_style_set_text_color(&s_ui.style, lv_color_white());
@@ -530,6 +525,9 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     lv_style_set_pad_column(&s_ui.style, 2);
 
     lv_obj_t *scr = lv_display_get_screen_active(display);
+
+    yield_for_watchdog(k_WATCHDOG_YIELD_TIME_MS);
+
     lv_obj_clean(scr);
     lv_obj_add_style(scr, &s_ui.style, LV_PART_MAIN);
 
@@ -538,6 +536,9 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     lv_obj_add_style(label1, &s_ui.style, LV_PART_MAIN);
 
     vTaskDelay(pdMS_TO_TICKS(3000));
+
+    yield_for_watchdog(k_WATCHDOG_YIELD_TIME_MS);
+
     lv_obj_clean(scr);
     lv_obj_add_style(scr, &s_ui.style, LV_PART_MAIN);
 
@@ -586,4 +587,22 @@ void ui_run(i2c_master_bus_handle_t bus_handle) {
     lv_label_set_text(s_ui.power, "---- W");
     lv_obj_set_grid_cell(
         s_ui.power, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 1, 1);
+
+    // Start the LVGL event loop only after initial UI construction has
+    // completed to avoid concurrent LVGL API access from multiple tasks.
+    ESP_LOGI(TAG,
+             "Creating LVGL event loop task on CPU %d",
+             k_TOTE_MONITOR_LVGL_TASK_CORE_ID);
+    BaseType_t tmp_task_create_ret =
+        xTaskCreatePinnedToCore(lvgl_event_loop,
+                                "LVGL",
+                                k_TOTE_MONITOR_LVGL_TASK_STACK_SIZE,
+                                NULL,
+                                k_TOTE_MONITOR_LVGL_TASK_PRIORITY,
+                                NULL,
+                                k_TOTE_MONITOR_LVGL_TASK_CORE_ID);
+    if (tmp_task_create_ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create LVGL event loop task");
+        return;
+    }
 }
