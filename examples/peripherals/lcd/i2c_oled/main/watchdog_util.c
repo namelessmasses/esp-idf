@@ -1,8 +1,11 @@
+#include "watchdog_util.h"
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+#include <sdkconfig.h>
 
 static const char *TAG = "watchdog_reset";
 
@@ -15,7 +18,7 @@ const char *watchdog_current_task_name(TaskHandle_t task_handle) {
 
 esp_err_t watchdog_subscribe_current_task_if_needed(TaskHandle_t task_handle,
                                                     const char  *task_name) {
-#if 1
+#if defined(CONFIG_ESP_TASK_WDT_EN)
     esp_err_t tmp_status_ret = esp_task_wdt_status(NULL);
     if (tmp_status_ret == ESP_OK) {
         return ESP_OK;
@@ -52,7 +55,7 @@ esp_err_t watchdog_subscribe_current_task_if_needed(TaskHandle_t task_handle,
 }
 
 void watchdog_reset(void) {
-#if 1
+#if defined(CONFIG_ESP_TASK_WDT_EN)
     TaskHandle_t task_handle = xTaskGetCurrentTaskHandle();
     const char  *task_name   = watchdog_current_task_name(task_handle);
 
