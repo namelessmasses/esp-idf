@@ -1,15 +1,23 @@
 #include "watchdog_util.h"
-#include "esp_cpu.h"
-#include <esp_err.h>
-#include <esp_gdbstub.h>
-#include <esp_log.h>
-#include <esp_task_wdt.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 #include <sdkconfig.h>
 
+#if CONFIG_ESP_TASK_WDT_EN
+#include <esp_task_wdt.h>
+#endif
+
+#define WATCHDOG_UTIL_NEEDS_LOG_TAG                                            \
+    CONFIG_ESP_TASK_WDT_EN || CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME
+
+#if WATCHDOG_UTIL_NEEDS_LOG_TAG
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include <esp_err.h>
+#include <esp_log.h>
+
 static const char *TAG = "watchdog_reset";
+#endif
 
 static const uint32_t k_WATCHDOG_YIELD_TIME_MS = 10;
 
