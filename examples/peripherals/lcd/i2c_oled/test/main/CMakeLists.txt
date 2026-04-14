@@ -8,4 +8,5 @@ idf_component_register(
         ads1115_c
         esp_driver_i2c
         unity
+    WHOLE_ARCHIVE
 )
