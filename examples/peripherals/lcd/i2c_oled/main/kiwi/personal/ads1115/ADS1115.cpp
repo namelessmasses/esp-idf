@@ -75,7 +75,6 @@ class ADS1115::Impl {
     std::shared_ptr<II2C> m_pII2C;
     uint8_t               m_Address;
     PGA                   m_PGA;
-    float                 m_VoltageDividerScale = 1.f;
 
     static inline internal_pga_type GetPGAScale(PGA pga) {
         switch (pga) {
@@ -201,13 +200,6 @@ void ADS1115::SetMUX(MUX mux) {
                             ADS1115::k_DEFAULT_TIMEOUT_MS);
 }
 
-void ADS1115::SetVoltageDivider(float r1, float r2) {
-    if (r2 <= 0.f) {
-        throw std::invalid_argument(
-            std::format("Invalid resistor values: R1={}, R2={}", r1, r2));
-    }
-
-    m_pImpl->m_VoltageDividerScale = (r1 + r2) / r2;
 }
 
 float ADS1115::GetVoltage() {
@@ -296,7 +288,6 @@ float ADS1115::GetVoltage() {
 
     float volategScale = Impl::GetVoltageScale(m_pImpl->m_PGA);
     float voltage      = volategScale * raw_reading;
-    voltage *= m_pImpl->m_VoltageDividerScale;
 
     return voltage;
 }
