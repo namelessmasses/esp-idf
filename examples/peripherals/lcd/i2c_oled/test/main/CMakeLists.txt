@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        "test_main.c"
+        "test_ads1115.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        ads1115_c
+        esp_driver_i2c
+        unity
+)
