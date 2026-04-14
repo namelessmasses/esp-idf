@@ -11,4 +11,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # Build a small test firmware that contains only test/main and its
 # dependencies.
 idf_build_set_property(MINIMAL_BUILD ON)
-project(i2c_oled_test)
+project(battery_monitor_test)
