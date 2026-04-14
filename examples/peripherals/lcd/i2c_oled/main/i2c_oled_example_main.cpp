@@ -111,6 +111,8 @@ extern "C" void ui_run(i2c_master_bus_handle_t bus_handle);
 
 extern "C" void app_main(void) {
 
+    wait_for_gdb_attach();
+
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
     ESP_LOGI(TAG, "Initializing I2C bus");
