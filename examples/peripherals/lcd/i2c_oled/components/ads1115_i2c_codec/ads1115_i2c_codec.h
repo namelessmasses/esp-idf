@@ -36,7 +36,8 @@ typedef enum {
     ads1115_config_OS_WRITE_NO_EFFECT                 = 0,
     ads1115_config_OS_WRITE_START_SINGLE_CONVERSION   = 1,
     ads1115_config_OS_READ_CONVERSION_IN_PROGRESS     = 0,
-    ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS = 1
+    ads1115_config_OS_READ_CONVERSION_NOT_IN_PROGRESS = 1,
+    ads1115_config_OS_DEFAULT = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION
 } ads1115_config_os_t;
 
 typedef enum {
