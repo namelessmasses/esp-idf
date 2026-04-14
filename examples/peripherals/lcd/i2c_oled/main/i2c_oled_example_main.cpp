@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
-#include "kiwi2c/I2CFactory.hpp"
-#include "kiwi2c/II2C.hpp"
 #include "ADS1115.hpp"
 #include "SHT41.hpp"
+#include "kiwi2c/I2CFactory.hpp"
+#include "kiwi2c/II2C.hpp"
 
 extern "C" {
 
@@ -79,25 +79,21 @@ static void poll_sensors(void *arg) {
         if (std::isnan(voltage)) {
             ESP_LOGW(TAG,
                      "Failed to read from ADS1115 sensor - voltage is NaN");
-        } else {
-            g_sensor_data.data[data_index].voltage = voltage;
-            ESP_LOGI(TAG, "Voltage reading updated: voltage=%.2f V", voltage);
         }
 
-        kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
-        if (std::isnan(reading.relative_humidity)) {
+        g_sensor_data.data[data_index].temp_humid = poll_arg->p_SHT41->GetReading();
+        if (std::isnan(g_sensor_data.data[data_index].temp_humid.relative_humidity)) {
             ESP_LOGW(
                 TAG,
                 "Failed to read from SHT41 sensor - relative humidity is NaN");
-        } else if (std::isnan(reading.temperature_celcius)) {
+        } else if (std::isnan(g_sensor_data.data[data_index].temp_humid.temperature_celcius)) {
             ESP_LOGW(TAG,
                      "Failed to read from SHT41 sensor - temperature is NaN");
-        } else if (std::isnan(reading.temperature_fahrenheit)) {
+        } else if (std::isnan(g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit)) {
             ESP_LOGW(TAG,
                      "Failed to read from SHT41 sensor - temperature is NaN");
-        } else {
-            g_sensor_data.data[data_index].temp_humid = reading;
         }
+
 
         g_sensor_data.index.store(data_index);
 
@@ -109,6 +105,7 @@ static void poll_sensors(void *arg) {
             g_sensor_data.data[data_index].temp_humid.temperature_celcius,
             g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
             g_sensor_data.data[data_index].temp_humid.relative_humidity);
+
     } catch (const std::exception &e) {
         ESP_LOGE(
             TAG, "%s: Exception while polling sensors: %s", __func__, e.what());
