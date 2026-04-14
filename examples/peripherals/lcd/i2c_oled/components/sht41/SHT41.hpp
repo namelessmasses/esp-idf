@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../II2C.hpp"
+#include "kiwi2c/II2C.hpp"
 
 #include "sht41_reading.hpp"
 

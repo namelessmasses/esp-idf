@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "ADS1115.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        kiwi2c
+        ads1115_c
+)
