@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
-#include "./kiwi/I2CFactory.hpp"
-#include "./kiwi/II2C.hpp"
-#include "./kiwi/personal/ads1115/ADS1115.hpp"
-#include "./kiwi/personal/sht41/SHT41.hpp"
+#include "kiwi2c/I2CFactory.hpp"
+#include "kiwi2c/II2C.hpp"
+#include "ADS1115.hpp"
+#include "SHT41.hpp"
 
 extern "C" {
 

@@ -1,6 +1,6 @@
 #include "SHT41.hpp"
 
-#include "../../II2C.hpp"
+#include "kiwi2c/II2C.hpp"
 
 extern "C" {
 #include "sht41.h"

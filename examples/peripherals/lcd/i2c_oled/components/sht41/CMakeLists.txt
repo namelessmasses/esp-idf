@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "sht41.c"
+        "SHT41.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        kiwi2c
+        esp_driver_i2c
+)

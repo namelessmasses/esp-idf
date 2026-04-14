@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kiwi/personal/sht41/sht41_reading.h"
+#include "sht41_reading.h"
 
 #include <stdatomic.h>
 

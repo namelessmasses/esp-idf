@@ -1,11 +1,12 @@
-#include "I2CLegacy.hpp"
+#include "kiwi2c/I2CLegacy.hpp"
+
+#include <sdkconfig.h>
 
 #include <driver/i2c.h>
 #include <esp_err.h>
 #include <esp_log.h>
 
 #include <memory>
-#include <optional>
 
 namespace kiwi::i2c::legacy {
 
