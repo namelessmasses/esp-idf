@@ -11,6 +11,8 @@
 
 extern "C" {
 
+#include "watchdog_util.h"
+
 #include <freertos/FreeRTOS.h>
 
 #include <freertos/task.h>
@@ -34,8 +36,7 @@ extern "C" {
 #include <cstring>
 #include <memory>
 
-#include "sensor_data.hpp"
-#include "watchdog_util.hpp"
+#include "sensor_data.h"
 
 static const char *TAG = "tote_monitor";
 
@@ -52,8 +53,11 @@ typedef struct {
     std::unique_ptr<kiwi::i2c::SHT41>   p_SHT41;
 } poll_sensors_arg_t;
 
-static constexpr float k_VOLTAGE_DIVIDER_R1 = 983.f;
-static constexpr float k_VOLTAGE_DIVIDER_R2 = 323.f;
+static constexpr float k_VOLTAGE_DIVIDER_RTOP    = 0.f; //99.6e3f;
+static constexpr float k_VOLTAGE_DIVIDER_RBOTTOM = 1.f; //9.91e3f;
+static constexpr float k_VOLTAGE_DIVIDER_REVERSE_MULTIPLIER =
+    (k_VOLTAGE_DIVIDER_RTOP + k_VOLTAGE_DIVIDER_RBOTTOM) /
+    k_VOLTAGE_DIVIDER_RBOTTOM;
 
 static poll_sensors_arg_t s_poll_sensors_arg = {
     .i2c_bus = nullptr, .p_ADS1115 = nullptr, .p_SHT41 = nullptr};
@@ -63,51 +67,44 @@ static void poll_sensors(void *arg) {
 
         poll_sensors_arg_t *poll_arg = (poll_sensors_arg_t *)arg;
 
-        int32_t data_index = g_sensor_data.index.load();
-        ++data_index;
-        data_index = data_index & 1; // toggle between 0 and 1
+    int32_t data_index = g_sensor_data.index.load();
+    ++data_index;
+    data_index = data_index & 1; // toggle between 0 and 1
 
-        kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
-        if (std::isnan(reading.relative_humidity)) {
-            ESP_LOGW(
-                TAG,
-                "Failed to read from SHT41 sensor - relative humidity is NaN");
-            goto ReadVoltage;
-        }
+    g_sensor_data.data[data_index].voltage    = NAN;
+    g_sensor_data.data[data_index].temp_humid = {NAN, NAN, NAN};
 
-        if (std::isnan(reading.temperature_celcius)) {
-            ESP_LOGW(TAG,
-                     "Failed to read from SHT41 sensor - temperature is NaN");
-            goto ReadVoltage;
-        }
-
-        if (std::isnan(reading.temperature_fahrenheit)) {
-            ESP_LOGW(TAG,
-                     "Failed to read from SHT41 sensor - temperature is NaN");
-            goto ReadVoltage;
-        }
-
-        g_sensor_data.data[data_index].temp_humid = reading;
-
-    ReadVoltage:
-
-        g_sensor_data.data[data_index].voltage =
-            poll_arg->p_ADS1115->GetVoltage();
-
-        ESP_LOGI(TAG,
-                 "Sensor readings updated: voltage=%.2f V; temperature=%.2f C; temperature=%.2f F; humidity=%.2f %%",
-                 g_sensor_data.data[data_index].voltage,
-                 g_sensor_data.data[data_index].temp_humid.temperature_celcius,
-                 g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
-                 g_sensor_data.data[data_index].temp_humid.relative_humidity);
-
-        g_sensor_data.index.store(data_index);
-
-    } catch (const std::exception &e) {
-        ESP_LOGE(TAG, "Exception while polling sensors: %s", e.what());
-    } catch (...) {
-        ESP_LOGE(TAG, "Unknown exception while polling sensors");
+    float voltage = g_sensor_data.data[data_index].voltage =
+        poll_arg->p_ADS1115->GetVoltage() *
+        k_VOLTAGE_DIVIDER_REVERSE_MULTIPLIER;
+    if (std::isnan(voltage)) {
+        ESP_LOGW(TAG, "Failed to read from ADS1115 sensor - voltage is NaN");
+    } else {
+        g_sensor_data.data[data_index].voltage = voltage;
+        ESP_LOGI(TAG, "Voltage reading updated: voltage=%.2f V", voltage);
     }
+
+    kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
+    if (std::isnan(reading.relative_humidity)) {
+        ESP_LOGW(TAG,
+                 "Failed to read from SHT41 sensor - relative humidity is NaN");
+    } else if (std::isnan(reading.temperature_celcius)) {
+        ESP_LOGW(TAG, "Failed to read from SHT41 sensor - temperature is NaN");
+    } else if (std::isnan(reading.temperature_fahrenheit)) {
+        ESP_LOGW(TAG, "Failed to read from SHT41 sensor - temperature is NaN");
+    } else {
+        g_sensor_data.data[data_index].temp_humid = reading;
+    }
+
+    g_sensor_data.index.store(data_index);
+
+    ESP_LOGI(TAG,
+             "Sensor readings updated: voltage=%.2f V; temperature=%.2f C; "
+             "temperature=%.2f F; humidity=%.2f %%",
+             g_sensor_data.data[data_index].voltage,
+             g_sensor_data.data[data_index].temp_humid.temperature_celcius,
+             g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
+             g_sensor_data.data[data_index].temp_humid.relative_humidity);
 }
 
 extern "C" void ui_run(i2c_master_bus_handle_t bus_handle);
@@ -139,12 +136,6 @@ extern "C" void app_main(void) {
             ESP_LOGE(TAG, "Failed to initialize ADS1115 sensor");
             return;
         }
-
-        s_poll_sensors_arg.p_ADS1115->SetPGA(
-            kiwi::i2c::ADS1115::PGA::FS_4_096V);
-
-        s_poll_sensors_arg.p_ADS1115->SetVoltageDivider(k_VOLTAGE_DIVIDER_R1,
-                                                        k_VOLTAGE_DIVIDER_R2);
 
         ESP_LOGI(TAG, "Adding SHT41 to the I2C bus");
         s_poll_sensors_arg.p_SHT41 =
