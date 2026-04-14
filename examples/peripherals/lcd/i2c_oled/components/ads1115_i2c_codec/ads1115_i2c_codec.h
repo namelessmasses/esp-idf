@@ -1,6 +1,10 @@
 #pragma once
 
-#include "esp_log_level.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <esp_log_level.h>
 #include <stdint.h>
 
 #if !defined(ADS1115_SENSOR_ADDR)
@@ -184,3 +188,7 @@ void ads1115_decode_register(ads1115_register_t const *const in_i2c_reg,
 float ads1115_get_voltage(
     ads1115_config_pga_t                       pga,
     ads1115_conversion_register_t const *const conversion);
+
+#ifdef __cplusplus
+}
+#endif
