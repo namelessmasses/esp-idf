@@ -5,6 +5,10 @@
 #include "driver/i2c_types.h"
 #include "esp_err.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
                                  const uint8_t            ads1115_i2c_addr,
                                  i2c_master_dev_handle_t *ads1115_dev_handle);
@@ -21,3 +25,7 @@ esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
 esp_err_t ads1115_enable_conversion_ready_interrupt(
     i2c_master_dev_handle_t dev_handle,
     const uint8_t           ads1115_i2c_addr);
+
+#ifdef __cplusplus
+}
+#endif
