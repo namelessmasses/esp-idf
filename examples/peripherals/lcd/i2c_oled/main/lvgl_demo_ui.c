@@ -25,6 +25,7 @@
 #include <layouts/grid/lv_grid.h>
 #include <layouts/lv_layout.h>
 #include <lv_api_map_v8.h>
+#include <math.h>
 #include <misc/lv_area.h>
 #include <misc/lv_color.h>
 #include <misc/lv_style.h>
@@ -408,27 +409,42 @@ static void ui_update(lv_timer_t *timer) {
         return;
     }
 
-    char temp_str[16];
-    snprintf(temp_str,
-             sizeof(temp_str),
-             "%.2fC\n%.2fF",
-             g_sensor_data.data[data_index].temp_humid.temperature_celcius,
-             g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit);
-
-    char rh_str[16];
-    snprintf(rh_str,
-             sizeof(rh_str),
-             "Rel.Hu.\n%.2f%%",
-             g_sensor_data.data[data_index].temp_humid.relative_humidity);
+    char        temp_str[16];
+    const float temp_c =
+        g_sensor_data.data[data_index].temp_humid.temperature_celcius;
+    if (isnan(temp_c)) {
+        snprintf(temp_str, sizeof(temp_str), "Temp.\nNaN");
+    } else {
+        snprintf(
+            temp_str,
+            sizeof(temp_str),
+            "%.2fC\n%.2fF",
+            g_sensor_data.data[data_index].temp_humid.temperature_celcius,
+            g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit);
+    }
 
     lv_label_set_text(s_ui.temp, temp_str);
+
+    char rh_str[16];
+    const float rh = g_sensor_data.data[data_index].temp_humid.relative_humidity;
+    if (isnan(rh)) {
+        snprintf(rh_str, sizeof(rh_str), "Rel.Hu.\nNaN");
+    } else {
+        snprintf(rh_str,
+                 sizeof(rh_str),
+                 "Rel.Hu.\n%.2f%%",
+                 g_sensor_data.data[data_index].temp_humid.relative_humidity);
+    }
+
     lv_label_set_text(s_ui.rh, rh_str);
 
-    char voltage_str[8] = {0};
-    snprintf(voltage_str,
-             sizeof(voltage_str),
-             "%2.2fV",
-             g_sensor_data.data[data_index].voltage);
+    char        voltage_str[8] = {0};
+    const float voltage        = g_sensor_data.data[data_index].voltage;
+    if (isnan(voltage)) {
+        snprintf(voltage_str, sizeof(voltage_str), "NaN");
+    } else {
+        snprintf(voltage_str, sizeof(voltage_str), "%2.2fV", voltage);
+    }
 
     lv_label_set_text(s_ui.voltage, voltage_str);
 }
