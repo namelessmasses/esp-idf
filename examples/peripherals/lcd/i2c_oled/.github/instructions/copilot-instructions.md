@@ -63,3 +63,11 @@
 - Do not reintroduce recently deleted code unless needed to restore
   functionality or produce a better solution.
 
+## Repository Commits
+
+- Use clear, concise commit messages that summarize the change and its rationale.
+- Follow the repository's commit message guidelines, if any.
+- Group related changes into a single commit when possible, and avoid
+  mixing unrelated changes in the same commit.
+  - The decision metric is "if the current stage is commited, then would a build of that commit succeeed or fail?" Ideally try to keep it such that the build will succeed.
+  - Commits should be atomic, meaning they should represent a single logical change. If a change is too large to be easily understood, consider breaking it into smaller commits.
