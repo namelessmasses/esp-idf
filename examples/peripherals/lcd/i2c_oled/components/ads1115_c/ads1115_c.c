@@ -5,7 +5,9 @@
 #include <driver/i2c_master.h>
 #include <esp_err.h>
 #include <freertos/task.h>
+#include <math.h>
 #include <stdbool.h>
+
 
 #define I2C_MASTER_FREQ_HZ 400000
 
@@ -109,6 +111,36 @@ esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
 
     *output = reg.conversion.conversion_result;
     return ESP_OK;
+}
+
+float ads1115_get_voltage(
+    ads1115_config_pga_t                       pga,
+    ads1115_conversion_register_t const *const conversion) {
+    float FS = 0.f;
+    switch (pga) {
+    case ads1115_config_PGA_6_144V:
+        FS = 6.144f;
+        break;
+    case ads1115_config_PGA_4_096V:
+        FS = 4.096f;
+        break;
+    case ads1115_config_PGA_2_048V:
+        FS = 2.048f;
+        break;
+    case ads1115_config_PGA_1_024V:
+        FS = 1.024f;
+        break;
+    case ads1115_config_PGA_0_512V:
+        FS = 0.512f;
+        break;
+    case ads1115_config_PGA_0_256V:
+        FS = 0.256f;
+        break;
+    default:
+        return NAN;
+    }
+
+    return FS * conversion->conversion_result / 32768.f;
 }
 
 esp_err_t

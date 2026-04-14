@@ -22,9 +22,13 @@ esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
 esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
                                         int16_t                *output);
 
-esp_err_t ads1115_enable_conversion_ready_interrupt(
-    i2c_master_dev_handle_t dev_handle,
-    const uint8_t           ads1115_i2c_addr);
+float ads1115_get_voltage(
+    ads1115_config_pga_t                       pga,
+    ads1115_conversion_register_t const *const conversion);
+
+esp_err_t
+ads1115_enable_conversion_ready_interrupt(i2c_master_dev_handle_t dev_handle,
+                                          const uint8_t ads1115_i2c_addr);
 
 #ifdef __cplusplus
 }
