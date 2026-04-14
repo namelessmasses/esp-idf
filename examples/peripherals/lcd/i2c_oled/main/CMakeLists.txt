@@ -6,7 +6,7 @@ idf_component_register(
         "kiwi/personal/sht41/SHT41.cpp"
         "kiwi/personal/ads1115/ads1115.c"
         "kiwi/personal/ads1115/ADS1115.cpp"
-        "lvgl_demo_ui.c"
+        "lvgl_ui.c"
         "i2c_oled_example_main.cpp"
         "watchdog_util.c"
         "sensor_data.c"
