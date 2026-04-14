@@ -1,5 +1,7 @@
 #include "../../II2C.hpp"
 
+#include <esp_log_level.h>
+
 #include <cstdint>
 #include <memory>
 #include <sys/stat.h>
@@ -10,6 +12,11 @@ class ADS1115 {
   public:
     static constexpr uint8_t  k_DEFAULT_I2C_ADDRESS = 0x48;
     static constexpr uint32_t k_DEFAULT_TIMEOUT_MS  = 100;
+
+    /**
+     * Defaults to ESP_LOG_DEBUG
+     */
+    static esp_log_level_t s_LogLevel;
 
     ADS1115()                           = delete;
     ADS1115(const ADS1115 &)            = delete;
