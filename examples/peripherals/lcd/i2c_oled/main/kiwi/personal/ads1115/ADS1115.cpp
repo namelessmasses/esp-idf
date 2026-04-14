@@ -7,11 +7,21 @@
 #include "../../II2C.hpp"
 
 extern "C" {
-#include "./ads1115.h"
-}
 
+#include "./ads1115.h"
+
+#include "./endian.h"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include "portmacro.h"
+
+#include <esp_cpu.h>
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_log_level.h>
+}
 
 #include <format>
 #include <limits>
@@ -23,6 +33,8 @@ namespace kiwi::i2c {
 namespace {
 static const char *const TAG = "kiwi::i2c::ADS1115";
 }
+
+esp_log_level_t ADS1115::s_LogLevel = ESP_LOG_DEBUG;
 
 class ADS1115::Impl {
   public:
@@ -46,10 +58,11 @@ class ADS1115::Impl {
             throw std::invalid_argument("I2C interface cannot be null");
         }
 
-        ESP_LOGD(TAG,
-                 "Initializing ADS1115 at address 0x%02X on I2C bus %d",
-                 m_Address,
-                 m_pII2C->GetBusNumber());
+        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                      TAG,
+                      "Initializing ADS1115 at address 0x%02X on I2C bus %d",
+                      m_Address,
+                      m_pII2C->GetBusNumber());
 
         ESP_ERROR_CHECK(m_pII2C->AddBusDevice(m_Address));
     }
@@ -124,22 +137,17 @@ class ADS1115::Impl {
         case ads1115_config_DR_860SPS:
             return 2; // Datasheet specifies 1.2ms, but using 2ms to be safe
         default:
-            ESP_LOGW(TAG, "Unknown data rate setting: %u", dr);
-            return 8; // Default to 8ms for unknown data rate
+            ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                          TAG,
+                          "Unknown data rate setting in config register: %u",
+                          dr);
+
+            throw std::runtime_error(std::format(
+                "Unknown data rate setting in config register: 0x{:04x}",
+                static_cast<uint16_t>(dr)));
         }
     }
-};
 
-ADS1115::ADS1115(uint8_t address,
-                 uint8_t bus,
-                 uint8_t sda_gpio,
-                 uint8_t scl_gpio,
-                 PGA     pga,
-                 MUX     mux)
-    : m_pImpl(std::make_unique<Impl>(address, bus, sda_gpio, scl_gpio)) {
-    SetPGA(pga);
-    SetMUX(mux);
-}
 
 ADS1115::ADS1115(std::shared_ptr<II2C> i2c, uint8_t address, PGA pga, MUX mux)
     : m_pImpl(std::make_unique<Impl>(i2c, address)) {
