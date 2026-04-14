@@ -32,10 +32,11 @@ class ADS1115 {
         FS_2_048V = 2,
         FS_1_024V = 3,
         FS_0_512V = 4,
-        FS_0_256V = 5
+        FS_0_256V = 5,
+        DEFAULT = FS_2_048V
     };
 
-    static constexpr PGA DEFAULT_PGA = PGA::FS_2_048V;
+    static constexpr PGA DEFAULT_PGA = PGA::DEFAULT;
 
     enum class MUX {
         AIN0_AIN1 = 0,
@@ -45,17 +46,11 @@ class ADS1115 {
         AIN0_GND  = 4,
         AIN1_GND  = 5,
         AIN2_GND  = 6,
-        AIN3_GND  = 7
+        AIN3_GND  = 7,
+        DEFAULT = AIN0_AIN1
     };
 
-    static constexpr MUX DEFAULT_MUX = MUX::AIN0_AIN1;
-
-    ADS1115(uint8_t address,
-            uint8_t bus,
-            uint8_t sda_gpio,
-            uint8_t scl_gpio,
-            PGA     pga = DEFAULT_PGA,
-            MUX     mux = DEFAULT_MUX);
+    static constexpr MUX DEFAULT_MUX = MUX::DEFAULT;
 
     ADS1115(std::shared_ptr<II2C> i2c,
             uint8_t               address = k_DEFAULT_I2C_ADDRESS,
