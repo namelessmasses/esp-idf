@@ -66,8 +66,6 @@ class ADS1115 {
 
     void SetMUX(MUX mux);
 
-    void SetVoltageDivider(float r1, float r2);
-
     float GetVoltage();
 
   private:
