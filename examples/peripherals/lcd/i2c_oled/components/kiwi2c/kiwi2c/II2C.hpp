@@ -42,4 +42,4 @@ class II2C {
                                 uint32_t       timeout_ms) = 0;
 };
 
-} // namespace kiwi
+} // namespace kiwi::i2c

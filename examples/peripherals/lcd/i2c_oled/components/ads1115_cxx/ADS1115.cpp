@@ -1,11 +1,10 @@
 #include "./ADS1115.hpp"
 
-#include "../../I2C.hpp"
-#include "../../II2C.hpp"
+#include "kiwi2c/II2C.hpp"
 
 extern "C" {
 
-#include "./ads1115.h"
+#include "ads1115.h"
 
 #include "./endian.h"
 

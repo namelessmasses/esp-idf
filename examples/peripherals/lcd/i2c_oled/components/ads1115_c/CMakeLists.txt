@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "ads1115_c.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        ads1115_i2c_codec
+        esp_driver_i2c
+)
