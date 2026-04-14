@@ -53,8 +53,8 @@ typedef struct {
     std::unique_ptr<kiwi::i2c::SHT41>   p_SHT41;
 } poll_sensors_arg_t;
 
-static constexpr float k_VOLTAGE_DIVIDER_RTOP    = 0.f; //99.6e3f;
-static constexpr float k_VOLTAGE_DIVIDER_RBOTTOM = 1.f; //9.91e3f;
+static constexpr float k_VOLTAGE_DIVIDER_RTOP    = 0.f; // 99.6e3f;
+static constexpr float k_VOLTAGE_DIVIDER_RBOTTOM = 1.f; // 9.91e3f;
 static constexpr float k_VOLTAGE_DIVIDER_REVERSE_MULTIPLIER =
     (k_VOLTAGE_DIVIDER_RTOP + k_VOLTAGE_DIVIDER_RBOTTOM) /
     k_VOLTAGE_DIVIDER_RBOTTOM;
@@ -64,47 +64,57 @@ static poll_sensors_arg_t s_poll_sensors_arg = {
 
 static void poll_sensors(void *arg) {
     try {
-
         poll_sensors_arg_t *poll_arg = (poll_sensors_arg_t *)arg;
 
-    int32_t data_index = g_sensor_data.index.load();
-    ++data_index;
-    data_index = data_index & 1; // toggle between 0 and 1
+        int32_t data_index = g_sensor_data.index.load();
+        ++data_index;
+        data_index = data_index & 1; // toggle between 0 and 1
 
-    g_sensor_data.data[data_index].voltage    = NAN;
-    g_sensor_data.data[data_index].temp_humid = {NAN, NAN, NAN};
+        g_sensor_data.data[data_index].voltage    = NAN;
+        g_sensor_data.data[data_index].temp_humid = {NAN, NAN, NAN};
 
-    float voltage = g_sensor_data.data[data_index].voltage =
-        poll_arg->p_ADS1115->GetVoltage() *
-        k_VOLTAGE_DIVIDER_REVERSE_MULTIPLIER;
-    if (std::isnan(voltage)) {
-        ESP_LOGW(TAG, "Failed to read from ADS1115 sensor - voltage is NaN");
-    } else {
-        g_sensor_data.data[data_index].voltage = voltage;
-        ESP_LOGI(TAG, "Voltage reading updated: voltage=%.2f V", voltage);
+        float voltage = g_sensor_data.data[data_index].voltage =
+            poll_arg->p_ADS1115->GetVoltage() *
+            k_VOLTAGE_DIVIDER_REVERSE_MULTIPLIER;
+        if (std::isnan(voltage)) {
+            ESP_LOGW(TAG,
+                     "Failed to read from ADS1115 sensor - voltage is NaN");
+        } else {
+            g_sensor_data.data[data_index].voltage = voltage;
+            ESP_LOGI(TAG, "Voltage reading updated: voltage=%.2f V", voltage);
+        }
+
+        kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
+        if (std::isnan(reading.relative_humidity)) {
+            ESP_LOGW(
+                TAG,
+                "Failed to read from SHT41 sensor - relative humidity is NaN");
+        } else if (std::isnan(reading.temperature_celcius)) {
+            ESP_LOGW(TAG,
+                     "Failed to read from SHT41 sensor - temperature is NaN");
+        } else if (std::isnan(reading.temperature_fahrenheit)) {
+            ESP_LOGW(TAG,
+                     "Failed to read from SHT41 sensor - temperature is NaN");
+        } else {
+            g_sensor_data.data[data_index].temp_humid = reading;
+        }
+
+        g_sensor_data.index.store(data_index);
+
+        ESP_LOGI(
+            TAG,
+            "Sensor readings updated: voltage=%.2f V; temperature=%.2f C; "
+            "temperature=%.2f F; humidity=%.2f %%",
+            g_sensor_data.data[data_index].voltage,
+            g_sensor_data.data[data_index].temp_humid.temperature_celcius,
+            g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
+            g_sensor_data.data[data_index].temp_humid.relative_humidity);
+    } catch (const std::exception &e) {
+        ESP_LOGE(
+            TAG, "%s: Exception while polling sensors: %s", __func__, e.what());
+    } catch (...) {
+        ESP_LOGE(TAG, "%s: Unknown exception while polling sensors", __func__);
     }
-
-    kiwi::i2c::SHT41::Reading reading = poll_arg->p_SHT41->GetReading();
-    if (std::isnan(reading.relative_humidity)) {
-        ESP_LOGW(TAG,
-                 "Failed to read from SHT41 sensor - relative humidity is NaN");
-    } else if (std::isnan(reading.temperature_celcius)) {
-        ESP_LOGW(TAG, "Failed to read from SHT41 sensor - temperature is NaN");
-    } else if (std::isnan(reading.temperature_fahrenheit)) {
-        ESP_LOGW(TAG, "Failed to read from SHT41 sensor - temperature is NaN");
-    } else {
-        g_sensor_data.data[data_index].temp_humid = reading;
-    }
-
-    g_sensor_data.index.store(data_index);
-
-    ESP_LOGI(TAG,
-             "Sensor readings updated: voltage=%.2f V; temperature=%.2f C; "
-             "temperature=%.2f F; humidity=%.2f %%",
-             g_sensor_data.data[data_index].voltage,
-             g_sensor_data.data[data_index].temp_humid.temperature_celcius,
-             g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit,
-             g_sensor_data.data[data_index].temp_humid.relative_humidity);
 }
 
 extern "C" void ui_run(i2c_master_bus_handle_t bus_handle);
