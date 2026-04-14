@@ -1,5 +1,7 @@
 #include "watchdog_util.h"
+#include "esp_cpu.h"
 #include <esp_err.h>
+#include <esp_gdbstub.h>
 #include <esp_log.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
@@ -110,4 +112,9 @@ void watchdog_reset(void) {
 void yield_for_watchdog() {
     watchdog_reset();
     vTaskDelay(pdMS_TO_TICKS(k_WATCHDOG_YIELD_TIME_MS));
+}
+
+void wait_for_gdb_attach() {
+#if 1 && defined(CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME)
+#endif
 }
