@@ -185,10 +185,6 @@ void ads1115_encode_register(ads1115_register_t const *const in_host_reg,
 void ads1115_decode_register(ads1115_register_t const *const in_i2c_reg,
                              ads1115_register_t *const       out_host_reg);
 
-float ads1115_get_voltage(
-    ads1115_config_pga_t                       pga,
-    ads1115_conversion_register_t const *const conversion);
-
 #ifdef __cplusplus
 }
 #endif
