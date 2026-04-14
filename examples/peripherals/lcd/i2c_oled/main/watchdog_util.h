@@ -8,3 +8,5 @@ const char *watchdog_current_task_name(TaskHandle_t task_handle);
 void watchdog_reset(void);
 
 void yield_for_watchdog();
+
+void wait_for_gdb_attach();
