@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../../../system/gdbstub"
+		},
+		{
+			"path": "test"
 		}
 	],
 	"settings": {
