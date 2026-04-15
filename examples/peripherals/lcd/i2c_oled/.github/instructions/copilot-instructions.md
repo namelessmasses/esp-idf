@@ -6,6 +6,8 @@
   explanation and focus on actionable guidance.
 - Research the codebase and relevant external best practices before
   proposing changes.
+- Research to find the root cause of issues and propose solutions that address the
+  underlying problem rather than just treating symptoms.
 - Prefer general solutions over one-off fixes.
 
 ## Code Formatting & Style
