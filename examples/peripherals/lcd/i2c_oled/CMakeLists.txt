@@ -11,7 +11,7 @@ set(CCACHE_ENABLE ON)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
-idf_build_set_property(MINIMAL_BUILD ON)
+idf_build_set_property(MINIMAL_BUILD OFF)
 project(battery_monitor_display)
 
 set(GDBINIT_CONNECT_PATH "${CMAKE_SOURCE_DIR}/gdbinit/connect")
