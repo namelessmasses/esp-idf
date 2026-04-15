@@ -13,5 +13,5 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(MINIMAL_BUILD ON)
 project(battery_monitor_test)
 
-set(GDBINIT_CONNECT_PATH "${CMAKE_SOURCE_DIR}/../gdbinit/connect")
-include(../gdbinit-custom.cmake)
+set(GDBINIT_CONNECT_PATH "${CMAKE_SOURCE_DIR}/gdbinit/connect")
+include(../cmake/gdbinit-custom.cmake)
