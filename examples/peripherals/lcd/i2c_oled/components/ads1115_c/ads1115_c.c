@@ -40,11 +40,7 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
                                     sizeof(ads1115_register_t),
                                     100);
 
-#if ADS1115_DRIVER_CONVERTS_ENDIANESS
-    ads1115_register_decode(&reg_encoded, reg);
-#else
-    *reg = reg_encoded;
-#endif
+    ads1115_decode_register(&reg_encoded, reg);
 
     return ret;
 }
@@ -56,11 +52,7 @@ esp_err_t ads1115_write_register(i2c_master_dev_handle_t   ads1115_dev_handle,
     }
 
     ads1115_register_t reg_encoded;
-#if ADS1115_DRIVER_CONVERTS_ENDIANESS
-    ads1115_register_encode(reg, &reg_encoded);
-#else
-    reg_encoded = *reg;
-#endif
+    ads1115_encode_register(reg, &reg_encoded);
 
     return i2c_master_transmit(ads1115_dev_handle,
                                (uint8_t const *)&reg_encoded,
