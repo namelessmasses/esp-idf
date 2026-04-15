@@ -36,7 +36,7 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
         i2c_master_transmit_receive(ads1115_dev_handle,
                                     (uint8_t const *)&reg_encoded.address,
                                     sizeof(ads1115_address_pointer_register_t),
-                                    (uint8_t *)&reg_encoded,
+                                    (uint8_t *)&reg_encoded.raw,
                                     sizeof(ads1115_register_t),
                                     100);
 
