@@ -76,3 +76,92 @@ TEST_CASE("ads1115.config_register.decode.default",
     TEST_ASSERT_EQUAL_UINT8(ads1115_config_COMP_QUE_DEFAULT,
                             config_reg_host.config.COMP_QUE);
 }
+
+TEST_CASE("ads1115.conversion_register.decode_0",
+          "i2c conversion 0x0000 decodes to host conversion with value 0") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0x0000};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0x0000,
+                             conversion_reg_host.conversion.conversion_result);
+}
+
+TEST_CASE("ads1115.conversion_register.decode_1",
+          "i2c big-endian conversion 0x0100 decodes to esp-32 host conversion "
+          "with value 1") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0x0100};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0x0001,
+                             conversion_reg_host.conversion.conversion_result);
+}
+
+TEST_CASE("ads1115.conversion_register.decode_negative_1",
+          "i2c big-endian negative conversion 0xFFFF decodes to esp-32 host "
+          "conversion with value -1") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0xFFFF};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0xFFFF,
+                             conversion_reg_host.conversion.conversion_result);
+}
+
+TEST_CASE("ads1115.conversion_register.decode_negative_256",
+          "i2c big-endian negative conversion 0xFF00 decodes to esp-32 host "
+          "conversion with value -256") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0x00FF};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0x00FF,
+                             conversion_reg_host.conversion.conversion_result);
+}
+
+TEST_CASE("ads1115.conversion_register.decode_negative_32768",
+          "i2c big-endian negative conversion 0x8000 decodes to esp-32 host "
+          "conversion with value -32768") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0x0080};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0x8000,
+                             conversion_reg_host.conversion.conversion_result);
+}
+
+TEST_CASE("ads1115.conversion_register.decode_32767",
+          "i2c big-endian conversion 0x7FFF decodes to esp-32 host conversion "
+          "with value 32767") {
+    ads1115_register_t conversion_reg_i2c = {
+        .address = {.P = ADS1115_REG_CONVERSION}, .raw = 0xFF7F};
+
+    ads1115_register_t conversion_reg_host;
+    ads1115_decode_register(&conversion_reg_i2c, &conversion_reg_host);
+
+    TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
+                            conversion_reg_host.address.P);
+    TEST_ASSERT_EQUAL_UINT16(0x7FFF,
+                             conversion_reg_host.conversion.conversion_result);
+}
