@@ -135,6 +135,7 @@
 			"-I${workspaceFolder}/managed_components/lvgl__lvgl/examples",
 			"-I${workspaceFolder}/managed_components/lvgl__lvgl/src",
 			"-I${workspaceFolder}/managed_components/tny-robotics__sh1106-esp-idf/include"
-		]
+		],
+		"powershell.cwd": "i2c_oled"
 	}
 }
