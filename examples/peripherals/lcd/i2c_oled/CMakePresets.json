@@ -11,7 +11,7 @@
             "displayName": "ESP-IDF ESP32 Debug",
             "description": "Configure the i2c_oled example with the local ESP-IDF toolchain for use from standard CMake clients.",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-cmake-tools/${presetName}",
+            "binaryDir": "${sourceDir}/build_cmake_tools/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
