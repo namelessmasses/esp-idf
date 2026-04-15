@@ -4,9 +4,6 @@
 			"path": "."
 		},
 		{
-			"path": "../../../system/gdbstub"
-		},
-		{
 			"path": "test"
 		}
 	],
