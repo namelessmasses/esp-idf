@@ -14,14 +14,18 @@ if(NOT EXISTS "${compile_commands_path}")
     return()
 endif()
 
-# If ${clangd_path} already exists, then update it if and only if ${compile_commands_path} is newer. 
-if(EXISTS "${clangd_path}")
-    file(TIMESTAMP "${compile_commands_path}" compile_commands_timestamp)
-    file(TIMESTAMP "${clangd_path}" clangd_timestamp)
+file(READ "${compile_commands_path}" compile_commands_raw)
+string(SHA256 compile_commands_hash "${compile_commands_raw}")
 
-    if(clangd_timestamp STRGREATER compile_commands_timestamp)
+# If ${clangd_path}.sha256 already exists, read its contents and compare it 
+# with the current hash of compile_commands.json. If they match, skip the update.
+if(EXISTS "${clangd_path}.sha256")
+    file(READ "${clangd_path}.sha256" existing_hash)
+    string(SHA256 compile_commands_hash "${compile_commands_raw}")
+
+    if(existing_hash STREQUAL compile_commands_hash)
         message(STATUS
-            "Existing .clangd at ${clangd_path} is newer than "
+            "Existing .clangd at ${clangd_path} is up-to-date with "
             "compile_commands.json; skipping .clangd update")
         return()
     endif()
@@ -99,3 +103,8 @@ list(LENGTH include_dirs include_dir_count)
 message(STATUS
     "Updated .clangd from compile_commands.json "
     "with ${include_dir_count} include directories")
+
+    # Store the sha256 hash of the compile_commands.json content to file to check 
+# for changes in the subsequent runs.
+file(WRITE "${clangd_path}.sha256" "${compile_commands_hash}")
+
