@@ -114,7 +114,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         Run esp_idf_monitor to watch build output
         """
         project_desc = _get_project_desc(ctx, args)
-        elf_file = os.path.join(args.build_dir, project_desc['app_elf'])
+        elf_file = Path(args.build_dir) / project_desc['app_elf']
 
         idf_monitor = os.path.join(os.environ['IDF_PATH'], 'tools/idf_monitor.py')
         monitor_args = [PYTHON, idf_monitor]
@@ -160,7 +160,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         if print_filter is not None:
             monitor_args += ['--print_filter', print_filter]
 
-        elf_list = [str(elf) for elf in Path(args.build_dir).rglob('*.elf')]
+        elf_list = [elf.as_posix() for elf in Path(args.build_dir).rglob('*.elf')]
+        elf_file = elf_file.as_posix()
         if elf_file and elf_file in elf_list:
             # prepend the main app elf file to the list; make sure it is the first one
             elf_list.insert(0, elf_list.pop(elf_list.index(elf_file)))
