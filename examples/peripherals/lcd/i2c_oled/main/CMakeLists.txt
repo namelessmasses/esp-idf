@@ -13,5 +13,5 @@ idf_component_register(
         esp_driver_i2c
         esp_lcd
         esp_timer
-        esp_gdbstub
+        # esp_gdbstub
 )
