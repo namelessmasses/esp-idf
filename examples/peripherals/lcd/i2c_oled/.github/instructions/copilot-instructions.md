@@ -9,6 +9,7 @@
 - Research to find the root cause of issues and propose solutions that address the
   underlying problem rather than just treating symptoms.
 - Prefer general solutions over one-off fixes.
+- Determine when behavior changed and what changes were made. If a piece of code hasn't changed since last knwon good state, then it is highly unlikely to be the cause of the issue. If a piece of code has changed since last known good state, then it is more likely to be the cause of the issue.
 
 ## Code Formatting & Style
 
