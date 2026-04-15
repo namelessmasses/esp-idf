@@ -2,10 +2,12 @@ idf_component_register(
     SRCS
         "test_main.c"
         "test_ads1115.cpp"
+        "test_ads1115_cxx.cpp"
     INCLUDE_DIRS
         "."
     REQUIRES
         ads1115_c
+        ads1115_cxx
         esp_driver_i2c
         unity
         esp_gdbstub
