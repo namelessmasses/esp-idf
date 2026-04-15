@@ -3,6 +3,7 @@ if(NOT DEFINED PROJECT_SOURCE_DIR OR NOT DEFINED PROJECT_BINARY_DIR)
         "PROJECT_SOURCE_DIR and PROJECT_BINARY_DIR must be provided.")
 endif()
 
+# if compile_commands.json doesn't exist, this will be a no-op and just print a warning.
 set(compile_commands_path "${PROJECT_BINARY_DIR}/compile_commands.json")
 set(clangd_path "${PROJECT_SOURCE_DIR}/.clangd")
 
@@ -13,6 +14,22 @@ if(NOT EXISTS "${compile_commands_path}")
     return()
 endif()
 
+# If ${clangd_path} already exists, then update it if and only if ${compile_commands_path} is newer. 
+if(EXISTS "${clangd_path}")
+    file(TIMESTAMP "${compile_commands_path}" compile_commands_timestamp)
+    file(TIMESTAMP "${clangd_path}" clangd_timestamp)
+
+    if(clangd_timestamp STRGREATER compile_commands_timestamp)
+        message(STATUS
+            "Existing .clangd at ${clangd_path} is newer than "
+            "compile_commands.json; skipping .clangd update")
+        return()
+    endif()
+endif()
+
+message(STATUS
+    "Updating .clangd at ${clangd_path} from "
+    "compile_commands.json at ${compile_commands_path}")
 file(READ "${compile_commands_path}" compile_commands_raw)
 
 set(include_dirs "")
