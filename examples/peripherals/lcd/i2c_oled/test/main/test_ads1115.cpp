@@ -132,7 +132,7 @@ TEST_CASE("ads1115.conversion_register.decode_negative_256",
 
     TEST_ASSERT_EQUAL_UINT8(ADS1115_REG_CONVERSION,
                             conversion_reg_host.address.P);
-    TEST_ASSERT_EQUAL_UINT16(0x00FF,
+    TEST_ASSERT_EQUAL_UINT16(static_cast<int16_t>(0xFF00),
                              conversion_reg_host.conversion.conversion_result);
 }
 
