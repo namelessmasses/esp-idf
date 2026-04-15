@@ -7,4 +7,3 @@ set scheduler-locking on
 interrupt -a
 maintenance flush register-cache
 thbreak app_main
-b test_ads1115.cpp:57
