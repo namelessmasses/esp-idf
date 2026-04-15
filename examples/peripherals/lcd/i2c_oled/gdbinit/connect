@@ -1,0 +1,6 @@
+# Stop the entire inferior in multi-threaded non-stop sessions.
+interrupt -a
+set mi-async off
+set non-stop off
+set scheduler-locking on
+b test_ads1115.cpp:57
