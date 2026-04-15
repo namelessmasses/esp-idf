@@ -1,6 +1,10 @@
-# Stop the entire inferior in multi-threaded non-stop sessions.
-interrupt -a
+set remotetimeout 10
+target remote com4
+monitor reset halt
 set mi-async off
 set non-stop off
 set scheduler-locking on
+interrupt -a
+maintenance flush register-cache
+thbreak app_main
 b test_ads1115.cpp:57
