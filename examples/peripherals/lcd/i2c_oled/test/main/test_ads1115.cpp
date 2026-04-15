@@ -28,7 +28,7 @@ TEST_CASE("ads1115.address_register_pointer.decode",
 }
 
 TEST_CASE("ads1115.config_register.encode.default",
-          "default host config register encodes to i2c 0x8583") {
+          "default host config register (0x8583) encodes to i2c 0x8385") {
     ads1115_register_t config_reg_host{
         .address = {.P = ADS1115_REG_CONFIG},
         .config  = {.OS        = ads1115_config_OS_DEFAULT,
@@ -43,7 +43,7 @@ TEST_CASE("ads1115.config_register.encode.default",
 
     ads1115_register_t config_reg_i2c;
     ads1115_encode_register(&config_reg_host, &config_reg_i2c);
-    TEST_ASSERT_EQUAL_UINT16(0x8583, config_reg_i2c.raw);
+    TEST_ASSERT_EQUAL_UINT16(0x8385, config_reg_i2c.raw);
 }
 
 TEST_CASE("ads1115.config_register.decode.default",
