@@ -1,0 +1,2 @@
+source C:/esp/v5.5.3/esp-idf/examples/peripherals/lcd/i2c_oled/test/build/gdbinit/symbols
+source C:/esp/v5.5.3/esp-idf/examples/peripherals/lcd/i2c_oled/test/build/gdbinit/connect
