@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+set(CCACHE_ENABLE ON)
+
 set(EXTRA_COMPONENT_DIRS "../components")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
