@@ -30,7 +30,6 @@ extern "C" {
 }
 
 #include <cmath>
-#include <cstdbool>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
