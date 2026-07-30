@@ -1,0 +1,91 @@
+# Python package requirements for CI in ESP-IDF.
+# This feature can be enabled by running "install.{sh,bat,ps1,fish} --enable-ci"
+#
+# This file lists Python packages without version specifiers. Version details
+# are stored in a separate constraints file. For more information, visit:
+# https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/tools/idf-tools.html
+
+# ci
+idf-ci>=0.3,<1
+
+coverage
+jsonschema
+prettytable
+# Python package requirements for ESP-IDF. These are the so called core features which are installed in all systems.
+#
+# This file lists Python packages without version specifiers. Version details
+# are stored in a separate constraints file. For more information, visit:
+# https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/tools/idf-tools.html
+
+setuptools
+packaging
+click
+pyserial
+cryptography
+pyparsing
+pyelftools
+idf-component-manager>=2.2
+esp-coredump
+esptool
+esp-idf-kconfig
+esp-idf-monitor
+esp-idf-nvs-partition-gen
+esp-idf-size
+esp-idf-diag
+esp-idf-panic-decoder
+pyclang
+construct
+rich
+psutil
+
+# ble's compressed log testing tool
+tree_sitter
+tree_sitter_c
+
+# gdb extensions dependencies
+freertos_gdb
+# Python package requirements for building the documentation of ESP-IDF.
+# This feature can be enabled by running "install.{sh,bat,ps1,fish} --enable-docs"
+#
+# This file lists Python packages without version specifiers. Version details
+# are stored in a separate constraints file. For more information, visit:
+# https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/tools/idf-tools.html
+
+esp-docs
+linuxdoc
+# Python package requirements for IDE support in ESP-IDF.
+# This feature can be enabled by running "install.{sh,bat,ps1,fish} --enable-ide"
+#
+# This file lists Python packages without version specifiers. Version details
+# are stored in a separate constraints file. For more information, visit:
+# https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/tools/idf-tools.html
+
+esp-idf-monitor[ide]
+# Python package requirements for MCP (Model Context Protocol) server functionality in ESP-IDF.
+# This feature can be enabled by running "install.{sh,bat,ps1,fish} --enable-mcp"
+#
+# This file lists Python packages without version specifiers. Version details
+# are stored in a separate constraints file. For more information, visit:
+# https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/tools/idf-tools.html
+
+mcp[cli]
+# Python package requirements for specific test scripts in ESP-IDF.
+# This feature can be enabled by running "install.{sh,bat,ps1,fish} --enable-test-specific"
+
+# dependencies in pytest test scripts
+scapy
+websocket-client
+netifaces
+rangehttpserver
+dbus-python; sys_platform == 'linux'
+protobuf
+bleak
+paho-mqtt
+paramiko
+netmiko
+
+# iperf_test_util
+pyecharts
+
+# for twai tests, communicate with socket can device (e.g. Canable)
+python-can
