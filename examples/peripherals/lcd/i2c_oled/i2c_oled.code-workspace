@@ -10,7 +10,6 @@
 	"settings": {
 		"clangd.arguments": [
 			"--enable-config",
-			"--compile-commands-dir=${workspaceFolder}/build",
 			"--query-driver=C:/Espressif/tools/xtensa-esp-elf/**/xtensa-esp32-elf-g*.exe"
 		],
 		"clangd.fallbackFlags": [
