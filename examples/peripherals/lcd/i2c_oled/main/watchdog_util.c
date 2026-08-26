@@ -13,6 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <esp_cpu.h>
 #include <esp_err.h>
 #include <esp_log.h>
 
@@ -123,6 +124,13 @@ void yield_for_watchdog() {
 }
 
 void wait_for_gdb_attach() {
-#if 1 && defined(CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME)
+#if defined(CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME)
+    ESP_LOGI(TAG, "Waiting for GDB attach...");
+
+    while (!esp_cpu_dbgr_is_attached()) {
+        yield_for_watchdog();
+    }
+
+    ESP_LOGI(TAG, "GDB attached.");
 #endif
 }

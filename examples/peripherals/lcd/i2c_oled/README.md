@@ -42,6 +42,48 @@ The first time you run `idf.py` for the example will cost extra time as the buil
 
 (To exit the serial monitor, type ``Ctrl-]``.)
 
+### Serial GDB Stub debugging in VS Code
+
+The normal `build` profile does not enable the runtime GDB Stub. To debug over
+the board's USB-UART connection with the installed ESP Debug extension, set the
+following ESP-IDF workspace settings manually:
+
+```json
+{
+    "idf.buildPath": "build-gdbstub",
+    "idf.buildPathWin": "build-gdbstub",
+    "idf.sdkconfigDefaults": [
+        "sdkconfig.defaults",
+        "sdkconfig.gdbstub.defaults"
+    ]
+}
+```
+
+Then use the ESP-IDF command palette commands in this order:
+
+1. Run **ESP-IDF: Full Clean**.
+2. Run **ESP-IDF: Build your project**.
+3. Run **ESP-IDF: Flash your project** and select the UART port in
+   `idf.portWin`.
+4. Press **F5** and select **ESP Program**.
+
+The firmware should print `Waiting for GDB attach...` and remain there until
+the VS Code GDB session connects. The launch configuration uses the active
+`idf.buildPathWin` ELF and the selected `${config:idf.portWin}` port. Once
+attached, breakpoints, stepping, variable inspection, and FreeRTOS task
+listing are available. Do not run a serial monitor at the same time as the GDB
+session because both need exclusive access to the UART.
+
+For ordinary builds, restore the ESP-IDF settings to:
+
+```json
+{
+    "idf.buildPath": "build",
+    "idf.buildPathWin": "build",
+    "idf.sdkconfigDefaults": []
+}
+```
+
 See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
 
 ### Example Output

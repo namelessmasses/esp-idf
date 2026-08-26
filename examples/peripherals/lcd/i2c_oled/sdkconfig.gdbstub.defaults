@@ -1,0 +1,3 @@
+# Runtime serial GDB Stub profile. Keep this file out of the normal profile.
+CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME=y
+CONFIG_ESP_GDBSTUB_SUPPORT_TASKS=y

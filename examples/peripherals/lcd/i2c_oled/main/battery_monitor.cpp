@@ -141,7 +141,7 @@ extern "C" void app_main(void) {
         s_poll_sensors_arg.p_ADS1115   = std::make_unique<kiwi::i2c::ADS1115>(
             s_poll_sensors_arg.i2c_bus,
             kiwi::i2c::ADS1115::k_DEFAULT_I2C_ADDRESS,
-            kiwi::i2c::ADS1115::PGA::DEFAULT,
+            kiwi::i2c::ADS1115::PGA::FS_4_096V,
             kiwi::i2c::ADS1115::MUX::AIN0_GND);
 
         if (s_poll_sensors_arg.p_ADS1115 == nullptr) {

@@ -7,6 +7,14 @@ endif()
 set(compile_commands_path "${PROJECT_BINARY_DIR}/compile_commands.json")
 set(clangd_path "${PROJECT_SOURCE_DIR}/.clangd")
 
+set(compilation_database_path "${PROJECT_BINARY_DIR}")
+file(RELATIVE_PATH project_binary_rel
+    "${PROJECT_SOURCE_DIR}" "${PROJECT_BINARY_DIR}")
+if(NOT project_binary_rel MATCHES "^\\.\\./")
+    set(compilation_database_path "${project_binary_rel}")
+endif()
+file(TO_CMAKE_PATH "${compilation_database_path}" compilation_database_path)
+
 if(NOT EXISTS "${compile_commands_path}")
     message(WARNING
         "compile_commands.json not found at ${compile_commands_path}; "
@@ -15,13 +23,16 @@ if(NOT EXISTS "${compile_commands_path}")
 endif()
 
 file(READ "${compile_commands_path}" compile_commands_raw)
-string(SHA256 compile_commands_hash "${compile_commands_raw}")
+
+set(clangd_generator_version "2")
+set(clangd_hash_input
+    "${clangd_generator_version}\n${compilation_database_path}\n${compile_commands_raw}")
+string(SHA256 compile_commands_hash "${clangd_hash_input}")
 
 # If ${clangd_path}.sha256 already exists, read its contents and compare it 
 # with the current hash of compile_commands.json. If they match, skip the update.
 if(EXISTS "${clangd_path}.sha256")
     file(READ "${clangd_path}.sha256" existing_hash)
-    string(SHA256 compile_commands_hash "${compile_commands_raw}")
 
     if(existing_hash STREQUAL compile_commands_hash)
         message(STATUS
@@ -70,10 +81,10 @@ list(REMOVE_DUPLICATES include_dirs)
 list(SORT include_dirs)
 
 set(clangd_content "")
-string(APPEND clangd_content
-    "# Auto-generated from build/compile_commands.json by CMake.\n")
+string(APPEND clangd_content "# Auto-generated from ${compilation_database_path}/compile_commands.json by CMake.\n")
 string(APPEND clangd_content "CompileFlags:\n")
-string(APPEND clangd_content "  CompilationDatabase: build\n")
+string(APPEND clangd_content
+    "  CompilationDatabase: ${compilation_database_path}\n")
 string(APPEND clangd_content "  Add:\n")
 string(APPEND clangd_content "    - --target=xtensa-esp32-elf\n")
 
