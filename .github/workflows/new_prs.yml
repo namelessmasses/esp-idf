@@ -16,6 +16,8 @@ concurrency: jira_issues
 jobs:
   sync_prs_to_jira:
     name: Sync PRs to Jira
+    # Disabled because the external action image currently fails to build.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
