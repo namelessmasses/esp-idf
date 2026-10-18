@@ -6,8 +6,6 @@
 #include <esp_err.h>
 #include <esp_log.h>
 
-#include <memory>
-
 namespace kiwi::i2c::legacy {
 
 namespace {
