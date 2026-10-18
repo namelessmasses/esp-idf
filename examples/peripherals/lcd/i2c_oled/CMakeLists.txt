@@ -17,14 +17,14 @@ project(battery_monitor_display)
 set(GDBINIT_CONNECT_PATH "${CMAKE_SOURCE_DIR}/gdbinit/connect")
 include(cmake/gdbinit-custom.cmake)
 
-set(CLANGD_GENERATOR_SCRIPT
-    "${CMAKE_SOURCE_DIR}/cmake/update_clangd_from_compile_commands.cmake")
+# set(CLANGD_GENERATOR_SCRIPT
+#     "${CMAKE_SOURCE_DIR}/cmake/update_clangd_from_compile_commands.cmake")
 
-add_custom_target(update_clangd_from_compile_commands ALL
-    COMMAND ${CMAKE_COMMAND}
-            -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
-            -DPROJECT_BINARY_DIR=${CMAKE_BINARY_DIR}
-            -P ${CLANGD_GENERATOR_SCRIPT}
-    COMMENT "Updating .clangd from compile_commands.json"
-    VERBATIM
-)
+# add_custom_target(update_clangd_from_compile_commands ALL
+#     COMMAND ${CMAKE_COMMAND}
+#             -DPROJECT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+#             -DPROJECT_BINARY_DIR=${CMAKE_BINARY_DIR}
+#             -P ${CLANGD_GENERATOR_SCRIPT}
+#     COMMENT "Updating .clangd from compile_commands.json"
+#     VERBATIM
+# )
