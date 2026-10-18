@@ -18,4 +18,12 @@ menu "Bootloader manager"
         help
             Project version. It is placed in "version" field of the esp_bootloader_desc structure.
             The type of this field is "uint32_t".
+
+    config BOOTLOADER_PROJECT_VER_FROM_BUILD_TIMESTAMP
+        bool "Use build timestamp for project version"
+        default n
+        help
+            If set, the bootloader project version is generated for each build as a
+            numeric timestamp in YYMMDDHHMM format. The project must pass the generated
+            version header to the bootloader sub-build.
 endmenu # "Bootloader manager"

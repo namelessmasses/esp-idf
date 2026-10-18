@@ -9,6 +9,13 @@
 #include "esp_bootloader_desc.h"
 #include "sdkconfig.h"
 
+#if CONFIG_BOOTLOADER_PROJECT_VER_FROM_BUILD_TIMESTAMP
+#include "kiwi_build_version.h"
+#define BOOTLOADER_PROJECT_VERSION KIWI_BUILD_YYMMDDHHMM
+#else
+#define BOOTLOADER_PROJECT_VERSION CONFIG_BOOTLOADER_PROJECT_VER
+#endif
+
 // Bootloader version info
 #if BOOTLOADER_BUILD
 __attribute__((section(".data_bootloader_desc")))
@@ -22,7 +29,7 @@ const esp_bootloader_desc_t esp_bootloader_desc = {
 #else
     .secure_version = 0,
 #endif // CONFIG_BOOTLOADER_ANTI_ROLLBACK_ENABLE
-    .version = CONFIG_BOOTLOADER_PROJECT_VER,
+    .version = BOOTLOADER_PROJECT_VERSION,
     .idf_ver = IDF_VER,
 #ifdef CONFIG_BOOTLOADER_COMPILE_TIME_DATE
     .date_time = __DATE__ " " __TIME__,
