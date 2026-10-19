@@ -18,8 +18,8 @@ end
 
 # Load bootloader symbols
 set confirm off
-    add-symbol-file C:/esp/v5.5.3/esp-idf/examples/peripherals/lcd/i2c_oled/build/bootloader/bootloader.elf
+    add-symbol-file C:/esp/v6.1/esp-idf/examples/peripherals/lcd/i2c_oled/build/bootloader/bootloader.elf
 set confirm on
 
 # Load application symbols
-file C:/esp/v5.5.3/esp-idf/examples/peripherals/lcd/i2c_oled/build/battery_monitor_display.elf
+file C:/esp/v6.1/esp-idf/examples/peripherals/lcd/i2c_oled/build/battery_monitor_display.elf
