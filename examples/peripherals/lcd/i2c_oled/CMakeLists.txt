@@ -11,7 +11,7 @@ set(CCACHE_ENABLE ON)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # "Trim" the build. Include the minimal set of components, main, and anything it depends on.
-idf_build_set_property(MINIMAL_BUILD OFF)
+idf_build_set_property(MINIMAL_BUILD ON)
 
 # Generate one build version shared by the application and bootloader sub-build.
 set(KIWI_BUILD_VERSION_HEADER "${CMAKE_BINARY_DIR}/generated/kiwi_build_version.h")
