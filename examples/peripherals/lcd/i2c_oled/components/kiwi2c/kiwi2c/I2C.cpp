@@ -84,6 +84,13 @@ struct I2C::Impl {
     i2c_master_dev_handle_t GetDeviceHandle(uint8_t address) const {
         auto it = m_DeviceHandleMap.find(address);
         if (it == m_DeviceHandleMap.end()) {
+            ESP_LOG_LEVEL_LOCAL(
+                ESP_LOG_ERROR,
+                TAG,
+                "%s%u:I2C device with address 0x%02X not found on bus",
+                __FILE__,
+                __LINE__,
+                address);
             return nullptr;
         }
         return it->second;
@@ -128,18 +135,27 @@ esp_err_t I2C::AddBusDevice(uint8_t address) {
                                      .flags = {.disable_ack_check = false}};
 
     i2c_master_dev_handle_t devHandle;
-    esp_err_t result = i2c_master_bus_add_device(
-        pImpl->m_BusHandle, &devConfig, &devHandle);
+    esp_err_t               result =
+        i2c_master_bus_add_device(pImpl->m_BusHandle, &devConfig, &devHandle);
 
-    if (result == ESP_OK) {
-
-        pImpl->m_DeviceHandleMap[address] = devHandle;
+    if (result != ESP_OK) {
         ESP_LOG_LEVEL_LOCAL(
-            I2C::s_LogLevel,
+            ESP_LOG_ERROR,
             TAG,
-            "I2C device with address 0x%02X added successfully to bus",
-            address);
+            "Failed to add I2C device with address 0x%02X to bus %p",
+            address,
+            pImpl->m_BusHandle);
+
+        return result;
     }
+
+    pImpl->m_DeviceHandleMap[address] = devHandle;
+    ESP_LOG_LEVEL_LOCAL(
+        I2C::s_LogLevel,
+        TAG,
+        "I2C device with address 0x%02X added successfully to bus %p",
+        address,
+        pImpl->m_BusHandle);
 
     return result;
 }
@@ -150,6 +166,13 @@ esp_err_t I2C::Write(uint8_t        address,
                      uint32_t       timeout_ms) {
     i2c_master_dev_handle_t devHandle = pImpl->GetDeviceHandle(address);
     if (devHandle == nullptr) {
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR,
+                            TAG,
+                            "%s%u: Write to I2C device with address 0x%02X "
+                            "failed: GetDeviceHandle returned nullptr",
+                            __FILE__,
+                            __LINE__,
+                            address);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -161,6 +184,13 @@ esp_err_t
 I2C::Read(uint8_t address, uint8_t *data, size_t size, uint32_t timeout_ms) {
     i2c_master_dev_handle_t devHandle = pImpl->GetDeviceHandle(address);
     if (devHandle == nullptr) {
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR,
+                            TAG,
+                            "%s%u: Read from I2C device with address 0x%02X "
+                            "failed: GetDeviceHandle returned nullptr",
+                            __FILE__,
+                            __LINE__,
+                            address);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -176,6 +206,13 @@ esp_err_t I2C::WriteRead(uint8_t        address,
                          uint32_t       timeout_ms) {
     i2c_master_dev_handle_t devHandle = pImpl->GetDeviceHandle(address);
     if (devHandle == nullptr) {
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR,
+                            TAG,
+                            "%s%u: WriteRead to I2C device with address 0x%02X "
+                            "failed: GetDeviceHandle returned nullptr",
+                            __FILE__,
+                            __LINE__,
+                            address);
         return ESP_ERR_INVALID_ARG;
     }
 

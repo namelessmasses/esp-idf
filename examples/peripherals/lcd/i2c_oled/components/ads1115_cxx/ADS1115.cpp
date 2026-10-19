@@ -59,6 +59,12 @@ class ADS1115::Impl {
 
         ESP_ERROR_CHECK(m_pII2C->AddBusDevice(m_Address));
 
+        ESP_LOG_LEVEL_LOCAL(ADS1115::s_LogLevel,
+                            TAG,
+                            "Reading initial configuration register from "
+                            "ADS1115 at address 0x%02X",
+                            m_Address);
+
         ReadRegister(m_ConfigReg);
 
         // Set data rate to 8SPS since we don't need fast conversions, and this
@@ -125,8 +131,8 @@ class ADS1115::Impl {
 
     void WriteRegister(ads1115_config_register_t reg) {
         constexpr uint8_t  register_address = ADS1115_REG_CONFIG;
-        ads1115_register_t in_reg           = {.address = {.P = register_address},
-                                               .config  = reg};
+        ads1115_register_t in_reg = {.address = {.P = register_address},
+                                     .config  = reg};
         ads1115_log_register(ESP_LOG_INFO, &in_reg);
         I2CWireFormatConfig reg_to_write;
         reg_to_write.register_address = register_address;
