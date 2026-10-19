@@ -123,11 +123,20 @@ void yield_for_watchdog() {
     vTaskDelay(pdMS_TO_TICKS(k_WATCHDOG_YIELD_TIME_MS));
 }
 
+
+volatile bool g_wait_for_gdb = true;
+
+/**
+ * Wait for GDB to attach to the target.
+ * This function will block until the GDB debugger is attached.
+ *
+ * \note This never seemts to exit the loop even after gdb is attached. 
+ */
 void wait_for_gdb_attach() {
 #if defined(CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME)
     ESP_LOGI(TAG, "Waiting for GDB attach...");
 
-    while (!esp_cpu_dbgr_is_attached()) {
+    while (g_wait_for_gdb && !esp_cpu_dbgr_is_attached()) {
         yield_for_watchdog();
     }
 
