@@ -30,8 +30,10 @@ extern "C" {
 
 bool operator==(const ads1115_config_register_t &lhs,
                 const ads1115_config_register_t &rhs) {
-    return *reinterpret_cast<const uint16_t *>(&lhs) ==
-           *reinterpret_cast<const uint16_t *>(&rhs);
+    return lhs.OS == rhs.OS && lhs.MUX == rhs.MUX && lhs.PGA == rhs.PGA &&
+           lhs.MODE == rhs.MODE && lhs.DR == rhs.DR &&
+           lhs.COMP_MODE == rhs.COMP_MODE && lhs.COMP_POL == rhs.COMP_POL &&
+           lhs.COMP_LAT == rhs.COMP_LAT && lhs.COMP_QUE == rhs.COMP_QUE;
 }
 
 namespace kiwi::i2c {
@@ -97,9 +99,12 @@ class ADS1115::Impl {
         ads1115_config_register_t config_reg_check = {.only_for_simple_init =
                                                           0};
 
-        // Wait 100ms for the update?
         ReadRegister(config_reg_check);
-        if (config_reg_check != m_ConfigReg) {
+        // OS reads conversion status, so it need not match the start command
+        // that was written. Verify only the persistent configuration fields.
+        ads1115_config_register_t expected_config = m_ConfigReg;
+        expected_config.OS = config_reg_check.OS;
+        if (config_reg_check != expected_config) {
             throw std::runtime_error(
                 std::format("{}: config register verification failed: "
                             "expected {}, "
@@ -168,7 +173,7 @@ class ADS1115::Impl {
                                              (reg.PGA << 1) | (reg.MODE));
         wire_bytes[2] = static_cast<uint8_t>(
             (reg.DR << 5) | (reg.COMP_MODE << 4) | (reg.COMP_POL << 3) |
-            (reg.COMP_LAT << 1) | (reg.COMP_QUE));
+            (reg.COMP_LAT << 2) | (reg.COMP_QUE));
 
         ESP_LOGD(TAG,
                  "Config register wire bytes: 0x%02x%02x",
@@ -363,19 +368,19 @@ class ADS1115::Impl {
 
         ESP_LOGD(TAG,
                  "Read config register: 0x%02x%02x",
-                 wire_bytes[1],
-                 wire_bytes[0]);
+                 wire_bytes[0],
+                 wire_bytes[1]);
 
         // Unpack the wire bits
-        config_reg.OS        = (wire_bytes[1] >> 7) & 0x1;
-        config_reg.MUX       = (wire_bytes[1] >> 4) & 0x3;
-        config_reg.PGA       = (wire_bytes[1] >> 1) & 0x3;
-        config_reg.MODE      = (wire_bytes[1]) & 0x1;
-        config_reg.DR        = (wire_bytes[0] >> 5) & 0x7;
-        config_reg.COMP_MODE = (wire_bytes[0] >> 4) & 0x1;
-        config_reg.COMP_POL  = (wire_bytes[0] >> 3) & 0x1;
-        config_reg.COMP_LAT  = (wire_bytes[0] >> 2) & 0x1;
-        config_reg.COMP_QUE  = wire_bytes[0] & 0x3;
+        config_reg.OS        = (wire_bytes[0] >> 7) & 0x1;
+        config_reg.MUX       = (wire_bytes[0] >> 4) & 0x7;
+        config_reg.PGA       = (wire_bytes[0] >> 1) & 0x7;
+        config_reg.MODE      = (wire_bytes[0]) & 0x1;
+        config_reg.DR        = (wire_bytes[1] >> 5) & 0x7;
+        config_reg.COMP_MODE = (wire_bytes[1] >> 4) & 0x1;
+        config_reg.COMP_POL  = (wire_bytes[1] >> 3) & 0x1;
+        config_reg.COMP_LAT  = (wire_bytes[1] >> 2) & 0x1;
+        config_reg.COMP_QUE  = wire_bytes[1] & 0x3;
 
         ads1115_register_t reg_to_return = {
             .address = {.P = ADS1115_REG_CONFIG}, .config = config_reg};

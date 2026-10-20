@@ -350,6 +350,85 @@ TEST_CASE("[ADS1115].Initialization.null_i2c_throws",
     }
 }
 
+namespace {
+
+void CheckConfigInitialization(uint8_t initial_msb,
+                               uint8_t initial_lsb,
+                               uint8_t expected_msb,
+                               uint8_t expected_lsb,
+                               bool mismatch = false) {
+    using kiwi::i2c::ADS1115;
+    auto bus = std::make_shared<MockI2C>();
+    bus->ExpectAddBusDevice([](uint8_t address) {
+        TEST_ASSERT_EQUAL_HEX8(0x48, address);
+        return ESP_OK;
+    });
+
+    auto expect_read = [&](uint8_t msb, uint8_t lsb) {
+        bus->ExpectWriteRead([=](uint8_t address, const uint8_t *pointer,
+                                size_t write_size, uint8_t *data,
+                                size_t read_size, TickType_t) {
+            TEST_ASSERT_EQUAL_HEX8(0x48, address);
+            TEST_ASSERT_EQUAL_UINT(1, write_size);
+            TEST_ASSERT_EQUAL_HEX8(0x01, pointer[0]);
+            TEST_ASSERT_EQUAL_UINT(2, read_size);
+            data[0] = msb;
+            data[1] = lsb;
+            return ESP_OK;
+        });
+    };
+    auto expect_write = [&]() {
+        bus->ExpectWrite([=](uint8_t address, const uint8_t *data,
+                            size_t size, TickType_t) {
+            const uint8_t expected[] = {0x01, expected_msb, expected_lsb};
+            TEST_ASSERT_EQUAL_HEX8(0x48, address);
+            TEST_ASSERT_EQUAL_UINT(sizeof(expected), size);
+            TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, data, sizeof(expected));
+            return ESP_OK;
+        });
+    };
+
+    expect_read(initial_msb, initial_lsb);
+    expect_write();
+    // OS reads zero while the conversion requested by the write is busy.
+    // A persistent field mismatch must still be rejected.
+    expect_read(expected_msb & 0x7f, expected_lsb ^ (mismatch ? 0x08 : 0));
+    if (!mismatch) {
+        expect_write(); // Public constructor sets PGA, then MUX.
+        expect_write();
+    }
+
+    bool rejected = false;
+    try {
+        ADS1115 adc(bus, 0x48,
+                    static_cast<ADS1115::PGA>((expected_msb >> 1) & 0x07),
+                    static_cast<ADS1115::MUX>((expected_msb >> 4) & 0x07));
+    } catch (const std::runtime_error &) {
+        rejected = true;
+    }
+    TEST_ASSERT_EQUAL(mismatch, rejected);
+    bus->validate();
+}
+
+} // namespace
+
+TEST_CASE("[ADS1115].Initialization.reset_config_and_busy_status",
+          "[ads1115]") {
+    CheckConfigInitialization(0x85, 0x83, 0x85, 0x03);
+}
+
+TEST_CASE("[ADS1115].Initialization.full_width_mux_pga_and_latch",
+          "[ads1115]") {
+    // MUX=7, PGA=5, and all comparator flags set exercises the high bits
+    // lost by the old masks and the separate COMP_LAT bit.
+    CheckConfigInitialization(0xfb, 0x9c, 0xfb, 0x1f);
+}
+
+TEST_CASE("[ADS1115].Initialization.rejects_config_mismatch",
+          "[ads1115]") {
+    CheckConfigInitialization(0x85, 0x83, 0x85, 0x03, true);
+}
+
 TEST_CASE("[ADS1115].Initialization.add_bus_device_with_default_address",
           "If adding the device to the I2C bus fails during initialization, "
           "the constructor should throw") {
