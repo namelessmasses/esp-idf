@@ -98,8 +98,6 @@ class ADS1115::Impl {
                                                           0};
 
         // Wait 100ms for the update?
-        vTaskDelay(pdMS_TO_TICKS(100));
-
         ReadRegister(config_reg_check);
         if (config_reg_check != m_ConfigReg) {
             throw std::runtime_error(
