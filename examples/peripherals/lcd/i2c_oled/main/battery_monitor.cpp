@@ -80,19 +80,22 @@ static void poll_sensors(void *arg) {
                      "Failed to read from ADS1115 sensor - voltage is NaN");
         }
 
-        g_sensor_data.data[data_index].temp_humid = poll_arg->p_SHT41->GetReading();
-        if (std::isnan(g_sensor_data.data[data_index].temp_humid.relative_humidity)) {
+        g_sensor_data.data[data_index].temp_humid =
+            poll_arg->p_SHT41->GetReading();
+        if (std::isnan(
+                g_sensor_data.data[data_index].temp_humid.relative_humidity)) {
             ESP_LOGW(
                 TAG,
                 "Failed to read from SHT41 sensor - relative humidity is NaN");
-        } else if (std::isnan(g_sensor_data.data[data_index].temp_humid.temperature_celcius)) {
+        } else if (std::isnan(g_sensor_data.data[data_index]
+                                  .temp_humid.temperature_celcius)) {
             ESP_LOGW(TAG,
                      "Failed to read from SHT41 sensor - temperature is NaN");
-        } else if (std::isnan(g_sensor_data.data[data_index].temp_humid.temperature_fahrenheit)) {
+        } else if (std::isnan(g_sensor_data.data[data_index]
+                                  .temp_humid.temperature_fahrenheit)) {
             ESP_LOGW(TAG,
                      "Failed to read from SHT41 sensor - temperature is NaN");
         }
-
 
         g_sensor_data.index.store(data_index);
 
@@ -117,9 +120,18 @@ extern "C" void ui_run(i2c_master_bus_handle_t bus_handle);
 
 extern "C" void app_main(void) {
 
+#if 0
     wait_for_gdb_attach();
+#endif
 
-    esp_log_level_set(TAG, ESP_LOG_INFO);
+#if 0 && CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME
+    esp_cpu_dbgr_break();
+#endif
+
+    esp_log_level_set(TAG, ESP_LOG_DEBUG);
+    esp_log_level_set("kiwi::i2c::ADS1115", ESP_LOG_VERBOSE);
+    esp_log_level_set("kiwi::I2C", ESP_LOG_VERBOSE);
+    esp_log_level_set("ads1115_i2c_codec", ESP_LOG_VERBOSE);
 
     ESP_LOGI(TAG, "Initializing I2C bus");
     s_poll_sensors_arg.i2c_bus =
@@ -136,8 +148,9 @@ extern "C" void app_main(void) {
     yield_for_watchdog();
 
     try {
+
         ESP_LOGI(TAG, "Adding ADS1115 to the I2C bus");
-        kiwi::i2c::ADS1115::s_LogLevel = ESP_LOG_INFO;
+        // kiwi::i2c::ADS1115::s_LogLevel = ESP_LOG_INFO;
         s_poll_sensors_arg.p_ADS1115   = std::make_unique<kiwi::i2c::ADS1115>(
             s_poll_sensors_arg.i2c_bus,
             kiwi::i2c::ADS1115::k_DEFAULT_I2C_ADDRESS,
@@ -188,14 +201,16 @@ extern "C" void app_main(void) {
     ESP_ERROR_CHECK(esp_timer_start_periodic(
         poll_sensors_timer, k_POLL_SENSORS_PERIOD_MS * 1000ULL));
 
+    yield_for_watchdog();
+
+#if 0
     void *pv_bus_handle = s_poll_sensors_arg.i2c_bus->GetBusHandle();
 
     i2c_master_bus_handle_t bus_handle =
         *reinterpret_cast<i2c_master_bus_handle_t *>(&pv_bus_handle);
 
-    yield_for_watchdog();
-
     ui_run(bus_handle);
+#endif
 
     ESP_LOGI(TAG, "Sleeping indefinitely");
     while (true) {

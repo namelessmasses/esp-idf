@@ -19,7 +19,7 @@ CreateI2C(I2CDriver driver, uint8_t bus, uint8_t sda_gpio, uint8_t scl_gpio) {
     switch (driver) {
 #ifdef I2CDEV_USE_LEGACY_DRIVER
     case I2CDriver::Legacy:
-        ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO,
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_DEBUG,
                             TAG,
                             "Creating legacy I2C instance "
                             "on bus %u (SDA GPIO: %u, SCL GPIO: %u)",
@@ -29,7 +29,7 @@ CreateI2C(I2CDriver driver, uint8_t bus, uint8_t sda_gpio, uint8_t scl_gpio) {
         return std::make_shared<i2c::legacy::I2C>(bus, sda_gpio, scl_gpio);
 #else
     case I2CDriver::New:
-        ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO,
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_DEBUG,
                             TAG,
                             "Creating new I2C instance "
                             "on bus %u (SDA GPIO: %u, SCL GPIO: %u)",

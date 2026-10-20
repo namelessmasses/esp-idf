@@ -45,6 +45,12 @@ class SHT41::Impl {
     Impl(std::shared_ptr<II2C> const &i2c, uint8_t address)
         : m_pII2C(i2c)
         , m_address(address) {
+
+        ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO,
+                            TAG,
+                            "Adding SHT41 to the I2C bus at address 0x%02x",
+                            m_address);
+                            
         m_pII2C->AddBusDevice(m_address);
     }
 
@@ -116,6 +122,7 @@ SHT41::Reading SHT41::GetReading() {
             data.relative_humidity};
 }
 
-SHT41::~SHT41() {}
+SHT41::~SHT41() {
+}
 
-} // namespace kiwi
+} // namespace kiwi::i2c

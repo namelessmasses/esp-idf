@@ -144,7 +144,7 @@ typedef struct {
             uint16_t COMP_LAT : ADS1115_CONFIG_BITS_COMP_LAT;
             uint16_t COMP_QUE : ADS1115_CONFIG_BITS_COMP_QUE;
         };
-        uint16_t raw;
+        uint16_t only_for_simple_init;
     };
 } ads1115_config_register_t;
 

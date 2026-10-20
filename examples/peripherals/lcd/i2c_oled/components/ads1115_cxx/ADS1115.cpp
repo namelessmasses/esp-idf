@@ -1,5 +1,7 @@
 #include "./ADS1115.hpp"
 
+#include "ads1115_i2c_codec.h"
+#include "esp_log_config.h"
 #include "kiwi2c/II2C.hpp"
 
 extern "C" {
@@ -28,7 +30,8 @@ extern "C" {
 
 bool operator==(const ads1115_config_register_t &lhs,
                 const ads1115_config_register_t &rhs) {
-    return lhs.raw == rhs.raw;
+    return *reinterpret_cast<const uint16_t *>(&lhs) ==
+           *reinterpret_cast<const uint16_t *>(&rhs);
 }
 
 namespace kiwi::i2c {
@@ -53,19 +56,24 @@ class ADS1115::Impl {
 
         ESP_LOG_LEVEL(ADS1115::s_LogLevel,
                       TAG,
-                      "Initializing ADS1115 at address 0x%02X on I2C bus %d",
-                      m_Address,
-                      m_pII2C->GetBusNumber());
+                      "Initializing ADS1115 at address 0x%02X",
+                      m_Address);
 
         ESP_ERROR_CHECK(m_pII2C->AddBusDevice(m_Address));
 
         ESP_LOG_LEVEL_LOCAL(ADS1115::s_LogLevel,
                             TAG,
                             "Reading initial configuration register from "
-                            "ADS1115 at address 0x%02X",
+                            "device at address 0x%02X",
                             m_Address);
 
         ReadRegister(m_ConfigReg);
+
+        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                      TAG,
+                      "Initial configuration register retrieved from device at "
+                      "address 0x%02X",
+                      m_Address);
 
         // Set data rate to 8SPS since we don't need fast conversions, and this
         // allows for more stable readings with the ADS1115's internal PGA
@@ -75,22 +83,32 @@ class ADS1115::Impl {
         // comparator.
         m_ConfigReg.DR       = ads1115_config_DR_8SPS;
         m_ConfigReg.COMP_QUE = ads1115_config_COMP_QUE_DISABLE;
+
+        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                      TAG,
+                      "Writing updated configuration register to ADS1115 at "
+                      "address 0x%02X",
+                      m_Address);
+
         WriteRegister(m_ConfigReg);
 
-        ads1115_config_register_t config_reg_check = {.raw = 0};
+        ESP_LOGD(TAG, "Reading back config register to verify");
+
+        ads1115_config_register_t config_reg_check = {.only_for_simple_init =
+                                                          0};
+
+        // Wait 100ms for the update?
+        vTaskDelay(pdMS_TO_TICKS(100));
+
         ReadRegister(config_reg_check);
         if (config_reg_check != m_ConfigReg) {
-            ESP_LOGE(TAG,
-                     "Config register verification failed: expected 0x%04x, "
-                     "read back 0x%04x",
-                     m_ConfigReg.raw,
-                     config_reg_check.raw);
             throw std::runtime_error(
-                std::format("ADS1115 config register verification failed: "
-                            "expected 0x{:04x}, "
-                            "read back 0x{:04x}",
-                            m_ConfigReg.raw,
-                            config_reg_check.raw));
+                std::format("{}: config register verification failed: "
+                            "expected {}, "
+                            "read back {}",
+                            TAG,
+                            m_ConfigReg,
+                            config_reg_check));
         }
 
         // Set the conversion delay based on the data rate (DR) bits in the
@@ -117,6 +135,12 @@ class ADS1115::Impl {
     TickType_t                m_ConversionDelayTicks;
     float                     m_ConversionPGAMultiplier;
 
+    /**
+     * \brief Overload for writing to the conversion register (not allowed)
+     * \param reg The conversion register to write to (not used)
+     * \throws std::invalid_argument Always throws since writing to the
+     * conversion register is not allowed.
+     */
     void WriteRegister(ads1115_conversion_register_t reg) {
         // The conversion register is read-only, so writing to it doesn't make
         // sense.
@@ -124,99 +148,131 @@ class ADS1115::Impl {
             "Cannot write to conversion register - it is read-only");
     }
 
-    struct I2CWireFormatConfig {
-        uint8_t  register_address;
-        uint16_t bits;
-    };
-
+    /**
+     * \brief Overload to write to the config register
+     * \param reg The config register to write.
+     * \throws std::runtime_error If the I2C write fails.
+     *
+     * \details Packs a I2CWireFormatConfig structure using shift-and-OR with
+     * the appropriate register address and config register bits, then writes it
+     * over I2C.
+     */
     void WriteRegister(ads1115_config_register_t reg) {
-        constexpr uint8_t  register_address = ADS1115_REG_CONFIG;
-        ads1115_register_t in_reg = {.address = {.P = register_address},
-                                     .config  = reg};
-        ads1115_log_register(ESP_LOG_INFO, &in_reg);
-        I2CWireFormatConfig reg_to_write;
-        reg_to_write.register_address = register_address;
 
-        reg_to_write.bits = (reg.OS << 15);
-        reg_to_write.bits |= (reg.MUX << 12);
-        reg_to_write.bits |= (reg.PGA << 9);
-        reg_to_write.bits |= (reg.MODE << 8);
-        reg_to_write.bits |= (reg.DR << 5);
-        reg_to_write.bits |= (reg.COMP_MODE << 4);
-        reg_to_write.bits |= (reg.COMP_POL << 3);
-        reg_to_write.bits |= (reg.COMP_LAT << 2);
-        reg_to_write.bits |= reg.COMP_QUE;
+        ESP_LOG_LEVEL_LOCAL(
+            ADS1115::s_LogLevel, TAG, "Writing Config Register:");
+        LogRegister(ADS1115::s_LogLevel, reg);
+
+        uint8_t wire_bytes[3] = {0};
+
+        wire_bytes[0] = ADS1115_REG_CONFIG;
+        wire_bytes[1] = static_cast<uint8_t>((reg.OS << 7) | (reg.MUX << 4) |
+                                             (reg.PGA << 1) | (reg.MODE));
+        wire_bytes[2] = static_cast<uint8_t>(
+            (reg.DR << 5) | (reg.COMP_MODE << 4) | (reg.COMP_POL << 3) |
+            (reg.COMP_LAT << 1) | (reg.COMP_QUE));
+
+        ESP_LOGD(TAG,
+                 "Config register wire bytes: 0x%02x%02x",
+                 wire_bytes[1],
+                 wire_bytes[2]);
 
         esp_err_t write_err =
             m_pII2C->Write(m_Address,
-                           reinterpret_cast<const uint8_t *>(&reg_to_write),
-                           sizeof(reg_to_write),
+                           reinterpret_cast<const uint8_t *>(wire_bytes),
+                           sizeof(wire_bytes),
                            ADS1115::k_DEFAULT_TIMEOUT_MS);
+
         if (write_err != ESP_OK) {
-            const char *const error_name = esp_err_to_name(write_err);
-            ESP_LOGE(
-                TAG, "Failed to write ADS1115 config register: %s", error_name);
-            throw std::runtime_error(std::format(
-                "Failed to write ADS1115 config register: {}", error_name));
+            throw std::runtime_error(
+                std::format("{}: Failed to write config register: {}",
+                            TAG,
+                            esp_err_to_name(write_err)));
         }
-        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
-                      TAG,
-                      "Wrote ADS1115 config register with value: 0x%04x",
-                      reg_to_write.bits);
 
         m_ConfigReg = reg;
     }
 
+    /**
+     * \brief Overload for writing the LO_THRESH register
+     */
     void WriteRegister(ads1115_lo_thresh_register_t reg) {
-        constexpr uint8_t  register_address = ADS1115_REG_LO_THRESH;
-        ads1115_register_t reg_to_write;
-        reg_to_write.address.P       = register_address;
-        reg_to_write.lo_thresh.value = ads1115_endian_swap_16(reg.value);
+
+        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                      TAG,
+                      "Writing LO_THRESH register with value: %hu",
+                      reg.value);
+
+        uint8_t wire_bytes[3] = {0};
+
+        wire_bytes[0] = ADS1115_REG_LO_THRESH;
+        wire_bytes[1] = static_cast<uint8_t>((reg.value >> 8) & 0xFF);
+        wire_bytes[2] = static_cast<uint8_t>(reg.value & 0xFF);
+
+        ESP_LOGD(TAG,
+                 "LO_THRESH register wire bytes: 0x%02x%02x",
+                 wire_bytes[1],
+                 wire_bytes[2]);
 
         esp_err_t write_err =
             m_pII2C->Write(m_Address,
-                           reinterpret_cast<const uint8_t *>(&reg_to_write),
-                           sizeof(reg_to_write),
+                           reinterpret_cast<const uint8_t *>(wire_bytes),
+                           sizeof(wire_bytes),
                            ADS1115::k_DEFAULT_TIMEOUT_MS);
+
         if (write_err != ESP_OK) {
-            const char *const error_name = esp_err_to_name(write_err);
-            ESP_LOGE(TAG,
-                     "Failed to write ADS1115 LO_THRESH register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to write ADS1115 LO_THRESH register: {}", error_name));
+            throw std::runtime_error(
+                std::format("{}: Failed to write LO_THRESH register: {}",
+                            TAG,
+                            esp_err_to_name(write_err)));
         }
 
         ESP_LOG_LEVEL(ADS1115::s_LogLevel,
                       TAG,
-                      "Wrote ADS1115 LO_THRESH register with value: 0x%04x",
-                      reg.value);
+                      "Wrote LO_THRESH register with value: 0x%02x%02x",
+                      wire_bytes[1],
+                      wire_bytes[2]);
     }
 
+    /**
+     * \brief Overload for writing the HI_THRESH register
+     */
     void WriteRegister(ads1115_hi_thresh_register_t reg) {
-        constexpr uint8_t  register_address = ADS1115_REG_HI_THRESH;
-        ads1115_register_t reg_to_write;
-        reg_to_write.address.P       = register_address;
-        reg_to_write.hi_thresh.value = ads1115_endian_swap_16(reg.value);
+
+        ESP_LOG_LEVEL(ADS1115::s_LogLevel,
+                      TAG,
+                      "Writing HI_THRESH register with value: %hu",
+                      reg.value);
+
+        uint8_t wire_bytes[3] = {0};
+
+        wire_bytes[0] = ADS1115_REG_HI_THRESH;
+        wire_bytes[1] = static_cast<uint8_t>((reg.value >> 8) & 0xFF);
+        wire_bytes[2] = static_cast<uint8_t>(reg.value & 0xFF);
+
+        ESP_LOGD(TAG,
+                 "HI_THRESH register wire bytes: 0x%02x%02x",
+                 wire_bytes[1],
+                 wire_bytes[2]);
 
         esp_err_t write_err =
             m_pII2C->Write(m_Address,
-                           reinterpret_cast<const uint8_t *>(&reg_to_write),
-                           sizeof(reg_to_write),
+                           reinterpret_cast<const uint8_t *>(wire_bytes),
+                           sizeof(wire_bytes),
                            ADS1115::k_DEFAULT_TIMEOUT_MS);
+
         if (write_err != ESP_OK) {
-            const char *const error_name = esp_err_to_name(write_err);
-            ESP_LOGE(TAG,
-                     "Failed to write ADS1115 HI_THRESH register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to write ADS1115 HI_THRESH register: {}", error_name));
+            throw std::runtime_error(
+                std::format("{}: Failed to write HI_THRESH register: {}",
+                            TAG,
+                            esp_err_to_name(write_err)));
         }
 
         ESP_LOG_LEVEL(ADS1115::s_LogLevel,
                       TAG,
-                      "Wrote ADS1115 HI_THRESH register with value: 0x%04x",
-                      reg.value);
+                      "Wrote HI_THRESH register with value: 0x%02x%02x",
+                      wire_bytes[1],
+                      wire_bytes[2]);
     }
 
 #if 0
@@ -241,205 +297,240 @@ class ADS1115::Impl {
     }
 #endif
 
+    /**
+     * \brief Overload for reading the conversion register
+     */
     ads1115_register_t
     ReadRegister(ads1115_conversion_register_t &conversion_reg) {
-        // To read the conversion register, we need to write the register
-        // address we want to read, then read the register value.
-        constexpr uint8_t  register_address = ADS1115_REG_CONVERSION;
-        ads1115_register_t reg_to_read;
-        reg_to_read.address.P = register_address;
 
-        esp_err_t write_request_err = m_pII2C->Write(
+        const ads1115_address_pointer_register_t address_pointer_register = {
+            .P = ADS1115_REG_CONVERSION};
+
+        uint8_t wire_bytes[2] = {0};
+
+        const esp_err_t read_request_err = m_pII2C->WriteRead(
             m_Address,
-            reinterpret_cast<const uint8_t *>(&reg_to_read.address),
+            reinterpret_cast<const uint8_t *>(&address_pointer_register),
             sizeof(ads1115_address_pointer_register_t),
+            reinterpret_cast<uint8_t *>(wire_bytes),
+            sizeof(wire_bytes),
             ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (write_request_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(write_request_err);
-            ESP_LOGE(TAG,
-                     "Failed to request ADS1115 conversion register: %s",
-                     error_name);
+
+        if (read_request_err != ESP_OK) {
             throw std::runtime_error(
-                std::format("Failed to request ADS1115 conversion register: {}",
-                            error_name));
+                std::format("Failed to read conversion register: {}",
+                            esp_err_to_name(read_request_err)));
         }
 
-        esp_err_t read_err =
-            m_pII2C->Read(m_Address,
-                          reinterpret_cast<uint8_t *>(&reg_to_read.conversion),
-                          sizeof(reg_to_read.conversion),
-                          ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (read_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(read_err);
-            ESP_LOGE(TAG,
-                     "Failed to read ADS1115 conversion register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to read ADS1115 conversion register: {}", error_name));
-        }
+        ESP_LOGD(TAG,
+                 "Read conversion register: 0x%02x%02x",
+                 wire_bytes[0],
+                 wire_bytes[1]);
 
-        conversion_reg.conversion_result = static_cast<int16_t>(
-            ads1115_endian_swap_16(reg_to_read.conversion.conversion_result));
-        reg_to_read.conversion = conversion_reg;
+        // Unpack the wire bits
+        conversion_reg.conversion_result = (wire_bytes[0] << 8) | wire_bytes[1];
 
-        ads1115_log_register(ADS1115::s_LogLevel, &reg_to_read);
+        ads1115_register_t reg_to_return = {
+            .address    = {.P = ADS1115_REG_CONVERSION},
+            .conversion = conversion_reg};
 
-        return reg_to_read;
+        LogRegister(ADS1115::s_LogLevel, reg_to_return.conversion);
+
+        return reg_to_return;
     }
 
+    /**
+     * \brief Overload for reading the config register
+     */
     ads1115_register_t ReadRegister(ads1115_config_register_t &config_reg) {
-        I2CWireFormatConfig config_reg_wire;
-        config_reg_wire.register_address = ADS1115_REG_CONFIG;
-        config_reg_wire.bits             = 0;
 
-        ESP_LOGD(TAG,
-                 "Requesting ADS1115 config register by writing register "
-                 "address 0x%02x",
-                 config_reg_wire.register_address);
+        const ads1115_address_pointer_register_t address_pointer_register = {
+            .P = ADS1115_REG_CONFIG};
 
-        // Read the config register by writing its address, then reading the
-        // register value.
-        esp_err_t write_request_config_err =
-            m_pII2C->Write(m_Address,
-                           reinterpret_cast<const uint8_t *>(
-                               &config_reg_wire.register_address),
-                           sizeof(ads1115_address_pointer_register_t),
-                           ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (write_request_config_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(write_request_config_err);
-            ESP_LOGE(TAG,
-                     "Failed to request ADS1115 config register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to request ADS1115 config register: {}", error_name));
-        }
+        uint8_t wire_bytes[2] = {0};
 
-        esp_err_t read_config_err =
-            m_pII2C->Read(m_Address,
-                          reinterpret_cast<uint8_t *>(&config_reg_wire.bits),
-                          sizeof(config_reg_wire.bits),
-                          ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (read_config_err != ESP_OK) {
-            ESP_LOGE(TAG,
-                     "Failed to read ADS1115 config register: %s",
-                     esp_err_to_name(read_config_err));
+        const esp_err_t read_request_err = m_pII2C->WriteRead(
+            m_Address,
+            reinterpret_cast<const uint8_t *>(&address_pointer_register),
+            sizeof(ads1115_address_pointer_register_t),
+            reinterpret_cast<uint8_t *>(wire_bytes),
+            sizeof(wire_bytes),
+            ADS1115::k_DEFAULT_TIMEOUT_MS);
+
+        if (read_request_err != ESP_OK) {
             throw std::runtime_error(
-                std::format("Failed to read ADS1115 config register: {}",
-                            esp_err_to_name(read_config_err)));
+                std::format("Failed to read config register: {}",
+                            esp_err_to_name(read_request_err)));
         }
 
         ESP_LOGD(TAG,
-                 "Read raw config register value: 0x%04x",
-                 config_reg_wire.bits);
+                 "Read config register: 0x%02x%02x",
+                 wire_bytes[1],
+                 wire_bytes[0]);
 
-        config_reg.OS        = (config_reg_wire.bits >> 15) & 0x1;
-        config_reg.MUX       = (config_reg_wire.bits >> 12) & 0x7;
-        config_reg.PGA       = (config_reg_wire.bits >> 9) & 0x7;
-        config_reg.MODE      = (config_reg_wire.bits >> 8) & 0x1;
-        config_reg.DR        = (config_reg_wire.bits >> 5) & 0x7;
-        config_reg.COMP_MODE = (config_reg_wire.bits >> 4) & 0x1;
-        config_reg.COMP_POL  = (config_reg_wire.bits >> 3) & 0x1;
-        config_reg.COMP_LAT  = (config_reg_wire.bits >> 2) & 0x1;
-        config_reg.COMP_QUE  = config_reg_wire.bits & 0x3;
+        // Unpack the wire bits
+        config_reg.OS        = (wire_bytes[1] >> 7) & 0x1;
+        config_reg.MUX       = (wire_bytes[1] >> 4) & 0x3;
+        config_reg.PGA       = (wire_bytes[1] >> 1) & 0x3;
+        config_reg.MODE      = (wire_bytes[1]) & 0x1;
+        config_reg.DR        = (wire_bytes[0] >> 5) & 0x7;
+        config_reg.COMP_MODE = (wire_bytes[0] >> 4) & 0x1;
+        config_reg.COMP_POL  = (wire_bytes[0] >> 3) & 0x1;
+        config_reg.COMP_LAT  = (wire_bytes[0] >> 2) & 0x1;
+        config_reg.COMP_QUE  = wire_bytes[0] & 0x3;
 
-        ads1115_register_t reg;
-        reg.address.P = ADS1115_REG_CONFIG;
-        reg.config    = config_reg;
-        ads1115_log_register(ADS1115::s_LogLevel, &reg);
-        return reg;
+        ads1115_register_t reg_to_return = {
+            .address = {.P = ADS1115_REG_CONFIG}, .config = config_reg};
+
+        ESP_LOG_LEVEL_LOCAL(
+            ADS1115::s_LogLevel, TAG, "Retrieved Config Register:");
+        LogRegister(ADS1115::s_LogLevel, reg_to_return.config);
+
+        return reg_to_return;
     }
 
+    /**
+     * \brief Overload for reading the LO_THRESH register
+     */
     ads1115_register_t
     ReadRegister(ads1115_lo_thresh_register_t &lo_thresh_reg) {
-        constexpr uint8_t  register_address = ADS1115_REG_LO_THRESH;
-        ads1115_register_t reg_to_read;
-        reg_to_read.address.P = register_address;
 
-        esp_err_t write_request_err = m_pII2C->Write(
+        const ads1115_address_pointer_register_t address_pointer_register = {
+            .P = ADS1115_REG_LO_THRESH};
+
+        uint8_t wire_bytes[2] = {0};
+
+        const esp_err_t read_request_err = m_pII2C->WriteRead(
             m_Address,
-            reinterpret_cast<const uint8_t *>(&reg_to_read.address),
+            reinterpret_cast<const uint8_t *>(&address_pointer_register),
             sizeof(ads1115_address_pointer_register_t),
+            reinterpret_cast<uint8_t *>(wire_bytes),
+            sizeof(wire_bytes),
             ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (write_request_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(write_request_err);
-            ESP_LOGE(TAG,
-                     "Failed to request ADS1115 LO_THRESH register: %s",
-                     error_name);
+
+        if (read_request_err != ESP_OK) {
             throw std::runtime_error(
-                std::format("Failed to request ADS1115 LO_THRESH register: {}",
-                            error_name));
+                std::format("Failed to read LO_THRESH register: {}",
+                            esp_err_to_name(read_request_err)));
         }
 
-        esp_err_t read_err = m_pII2C->Read(
-            m_Address,
-            reinterpret_cast<uint8_t *>(&reg_to_read.lo_thresh.value),
-            sizeof(reg_to_read.lo_thresh.value),
-            ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (read_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(read_err);
-            ESP_LOGE(TAG,
-                     "Failed to read ADS1115 LO_THRESH register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to read ADS1115 LO_THRESH register: {}", error_name));
-        }
+        ESP_LOGD(TAG,
+                 "Read LO_THRESH register: 0x%02x%02x",
+                 wire_bytes[0],
+                 wire_bytes[1]);
 
-        lo_thresh_reg.value =
-            ads1115_endian_swap_16(reg_to_read.lo_thresh.value);
-        reg_to_read.lo_thresh = lo_thresh_reg;
+        // Unpack the wire bits
+        lo_thresh_reg.value = (wire_bytes[0] << 8) | wire_bytes[1];
 
-        ads1115_log_register(ADS1115::s_LogLevel, &reg_to_read);
+        ads1115_register_t reg_to_return = {
+            .address   = {.P = ADS1115_REG_LO_THRESH},
+            .lo_thresh = lo_thresh_reg};
 
-        return reg_to_read;
+        LogRegister(ADS1115::s_LogLevel, reg_to_return.lo_thresh);
+
+        return reg_to_return;
     }
 
+    /**
+     * \brief Overload for reading the HI_THRESH register
+     */
     ads1115_register_t
     ReadRegister(ads1115_hi_thresh_register_t &hi_thresh_reg) {
-        constexpr uint8_t  register_address = ADS1115_REG_HI_THRESH;
-        ads1115_register_t reg_to_read;
-        reg_to_read.address.P = register_address;
 
-        esp_err_t write_request_err = m_pII2C->Write(
+        const ads1115_address_pointer_register_t address_pointer_register = {
+            .P = ADS1115_REG_HI_THRESH};
+
+        uint8_t wire_bytes[2] = {0};
+
+        const esp_err_t read_request_err = m_pII2C->WriteRead(
             m_Address,
-            reinterpret_cast<const uint8_t *>(&reg_to_read.address),
+            reinterpret_cast<const uint8_t *>(&address_pointer_register),
             sizeof(ads1115_address_pointer_register_t),
+            reinterpret_cast<uint8_t *>(wire_bytes),
+            sizeof(wire_bytes),
             ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (write_request_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(write_request_err);
-            ESP_LOGE(TAG,
-                     "Failed to request ADS1115 HI_THRESH register: %s",
-                     error_name);
+
+        if (read_request_err != ESP_OK) {
             throw std::runtime_error(
-                std::format("Failed to request ADS1115 HI_THRESH register: {}",
-                            error_name));
+                std::format("Failed to read HI_THRESH register: {}",
+                            esp_err_to_name(read_request_err)));
         }
 
-        esp_err_t read_err = m_pII2C->Read(
-            m_Address,
-            reinterpret_cast<uint8_t *>(&reg_to_read.hi_thresh.value),
-            sizeof(reg_to_read.hi_thresh.value),
-            ADS1115::k_DEFAULT_TIMEOUT_MS);
-        if (read_err != ESP_OK) {
-            const char *error_name = esp_err_to_name(read_err);
-            ESP_LOGE(TAG,
-                     "Failed to read ADS1115 HI_THRESH register: %s",
-                     error_name);
-            throw std::runtime_error(std::format(
-                "Failed to read ADS1115 HI_THRESH register: {}", error_name));
-        }
+        ESP_LOGD(TAG,
+                 "Read HI_THRESH register: 0x%04X",
+                 (wire_bytes[0] << 8) | wire_bytes[1]);
 
-        hi_thresh_reg.value =
-            ads1115_endian_swap_16(reg_to_read.hi_thresh.value);
-        reg_to_read.hi_thresh = hi_thresh_reg;
+        // Unpack the wire bits
+        hi_thresh_reg.value = (wire_bytes[0] << 8) | wire_bytes[1];
 
-        ads1115_log_register(ADS1115::s_LogLevel, &reg_to_read);
+        ads1115_register_t reg_to_return = {
+            .address   = {.P = ADS1115_REG_HI_THRESH},
+            .hi_thresh = hi_thresh_reg};
 
-        return reg_to_read;
+        LogRegister(ADS1115::s_LogLevel, reg_to_return.hi_thresh);
+
+        return reg_to_return;
     }
 
+    void LogRegister(esp_log_level_t                  log_level,
+                     const ads1115_config_register_t &config_reg) {
+
+        ESP_LOG_LEVEL_LOCAL(log_level,
+                            TAG,
+                            "Config Register: OS[0] %u, MUX[2:0] %u, PGA[2:0] "
+                            "%u, MODE[0] %u, DR[2:0] %u, COMP_MODE: %u, "
+                            "COMP_POL: %u, COMP_LAT: %u, COMP_QUE[1:0] %u",
+                            config_reg.OS,
+                            config_reg.MUX,
+                            config_reg.PGA,
+                            config_reg.MODE,
+                            config_reg.DR,
+                            config_reg.COMP_MODE,
+                            config_reg.COMP_POL,
+                            config_reg.COMP_LAT,
+                            config_reg.COMP_QUE);
+    }
+
+    void LogRegister(esp_log_level_t                      log_level,
+                     const ads1115_conversion_register_t &conversion_reg) {
+
+        ESP_LOG_LEVEL_LOCAL(log_level,
+                            TAG,
+                            "Conversion Register: 0x%04x %hu",
+                            conversion_reg.conversion_result,
+                            conversion_reg.conversion_result);
+    }
+
+    void LogRegister(esp_log_level_t                     log_level,
+                     const ads1115_hi_thresh_register_t &hi_thresh_reg) {
+
+        ESP_LOG_LEVEL_LOCAL(log_level,
+                            TAG,
+                            "HI_THRESH Register: 0x%04x %hu",
+                            hi_thresh_reg.value,
+                            hi_thresh_reg.value);
+    }
+
+    void LogRegister(esp_log_level_t                     log_level,
+                     const ads1115_lo_thresh_register_t &lo_thresh_reg) {
+
+        ESP_LOG_LEVEL_LOCAL(log_level,
+                            TAG,
+                            "LO_THRESH Register: 0x%04x %hu",
+                            lo_thresh_reg.value,
+                            lo_thresh_reg.value);
+    }
+
+    /**
+     * \brief Set the conversion PGA multiplier based on the given PGA setting
+     * \param pga The PGA setting to use for determining the conversion
+     * multiplier
+     */
     void SetConversionPGAMultiplier(ads1115_config_pga_t pga) {
+
         m_ConversionPGAMultiplier =
             ads1115_gain_values[static_cast<uint16_t>(pga)];
+
         ESP_LOG_LEVEL(ADS1115::s_LogLevel,
                       TAG,
                       "Set PGA scale to %.6f V/LSB based on PGA setting %u",
@@ -448,6 +539,7 @@ class ADS1115::Impl {
     }
 
     void SetPGA(ads1115_config_pga_t pga) {
+
         ads1115_config_register_t new_config_reg = m_ConfigReg;
 
         // Update the PGA bits in the config register

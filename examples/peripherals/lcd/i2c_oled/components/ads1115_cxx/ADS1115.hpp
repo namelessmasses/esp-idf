@@ -1,8 +1,10 @@
+#include "ads1115_i2c_codec.h"
 #include "kiwi2c/II2C.hpp"
 
 #include <esp_log_level.h>
 
 #include <cstdint>
+#include <format>
 #include <memory>
 #include <sys/stat.h>
 
@@ -33,7 +35,7 @@ class ADS1115 {
         FS_1_024V = 3,
         FS_0_512V = 4,
         FS_0_256V = 5,
-        DEFAULT = FS_2_048V
+        DEFAULT   = FS_2_048V
     };
 
     static constexpr PGA DEFAULT_PGA = PGA::DEFAULT;
@@ -47,7 +49,7 @@ class ADS1115 {
         AIN1_GND  = 5,
         AIN2_GND  = 6,
         AIN3_GND  = 7,
-        DEFAULT = AIN0_AIN1
+        DEFAULT   = AIN0_AIN1
     };
 
     static constexpr MUX DEFAULT_MUX = MUX::DEFAULT;
@@ -70,3 +72,29 @@ class ADS1115 {
 };
 
 } // namespace kiwi::i2c
+
+template <> struct std::formatter<ads1115_config_register_t> {
+
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext &ctx) const {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ads1115_config_register_t &reg,
+                FormatContext                   &ctx) const {
+        return std::format_to(
+            ctx.out(),
+            "OS={}, MUX[2:0]={}, PGA[2:0]={}, MODE={}, DR[2:0]={}, "
+            "COMP_MODE={}, COMP_POL={}, COMP_LAT={}, COMP_QUE[1:0]={}",
+            reg.OS,
+            reg.MUX,
+            reg.PGA,
+            reg.MODE,
+            reg.DR,
+            reg.COMP_MODE,
+            reg.COMP_POL,
+            reg.COMP_LAT,
+            reg.COMP_QUE);
+    }
+};
