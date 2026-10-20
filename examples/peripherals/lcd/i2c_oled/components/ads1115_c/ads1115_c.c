@@ -8,7 +8,6 @@
 #include <math.h>
 #include <stdbool.h>
 
-
 #define I2C_MASTER_FREQ_HZ 400000
 
 esp_err_t ads1115_bus_add_device(i2c_master_bus_handle_t  bus,
@@ -30,15 +29,20 @@ esp_err_t ads1115_read_register(i2c_master_dev_handle_t ads1115_dev_handle,
     }
 
     ads1115_register_t reg_encoded;
-    ads1115_encode_register(reg, &reg_encoded);
+    ads1115_encode_address_register_pointer(&reg->address,
+                                            &reg_encoded.address);
 
     esp_err_t ret =
         i2c_master_transmit_receive(ads1115_dev_handle,
                                     (uint8_t const *)&reg_encoded.address,
                                     sizeof(ads1115_address_pointer_register_t),
                                     (uint8_t *)&reg_encoded.raw,
-                                    sizeof(ads1115_register_t),
+                                    sizeof(reg_encoded.raw),
                                     100);
+
+    if (ESP_OK != ret) {
+        return ret;
+    }
 
     ads1115_decode_register(&reg_encoded, reg);
 
@@ -73,7 +77,8 @@ esp_err_t ads1115_get_single_conversion(i2c_master_dev_handle_t dev_handle,
         return ret;
     }
 
-    reg.config.OS = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION;
+    reg.config.OS   = ads1115_config_OS_WRITE_START_SINGLE_CONVERSION;
+    reg.config.MODE = ads1115_config_MODE_SINGLE_SHOT;
 
     ret = ads1115_write_register(dev_handle, &reg);
     if (ret != ESP_OK) {
